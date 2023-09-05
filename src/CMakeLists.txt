@@ -465,8 +465,6 @@ endif()
 foreach(exe ${my_EXECUTABLES})
 
   target_link_libraries(${exe}  ${Zoltan_LIBRARIES} )
-  #target_link_libraries(${exe} PUBLIC ${ParMETIS_LIBRARIES})
-  #target_link_libraries(${exe} PUBLIC METIS::METIS)#${METIS_LIBRARIES})
 
   target_link_libraries(${exe}  ${MPI_LIBRARIES} )
   target_link_libraries(${exe}  /cm/shared/ex3-modules/0.5.0/pkgs/boost-1.73.0/lib/libboost_program_options.so )
@@ -481,21 +479,5 @@ foreach(exe ${opm_dep})
   target_link_libraries(${exe}  ${opm-common_LIBRARIES} )
 
   target_link_libraries(${exe}  /cm/shared/ex3-modules/0.5.0/pkgs/boost-1.73.0/lib/libboost_program_options.so )
-  #target_link_libraries(${exe} ${opm-simulators_LIBRARIES})
-  #target_link_libraries(${exe} ${opm-grid_LIBRARIES})
-
-  #target_link_libraries(${exe} ${Zoltan_LIBRARIES})
-  
-  #target_link_libraries(${exe} ${ecl_LIBRARIES})
-  #target_link_libraries(${exe} ${opm-common_LIBRARIES})
-  
-  ##target_link_libraries(${exe} PUBLIC ${ParMETIS_LIBRARIES})
-  #target_link_libraries(${exe} PUBLIC METIS::METIS)#${METIS_LIBRARIES})
-  
-  #target_link_libraries(${exe} ${Boost_LIBRARIES})	
-  #target_link_libraries(${exe} ${Boost_FILESYSTEM_LIBRARIES})
-  #target_link_libraries(${exe} ${Boost_REGEX_LIBRARIES})
-  
-  #target_link_libraries(${exe} ${MPI_LIBRARIES})
   
 endforeach()
