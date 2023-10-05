@@ -1,0 +1,1 @@
+/cm/shared/ex3-modules/0.5.0/pkgs/gcc-10.1.0/bin/g++-10.1  -std=c++17 -O2 -mavx -funroll-loops -O3 -DNDEBUG   CMakeFiles/VerifyFortranC.dir/main.c.o CMakeFiles/VerifyFortranC.dir/VerifyC.c.o CMakeFiles/VerifyFortranC.dir/VerifyCXX.cxx.o  -o VerifyFortranC  libVerifyFortran.a -lgfortran -lquadmath 

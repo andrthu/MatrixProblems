@@ -1,0 +1,209 @@
+Determining if the std::identity exist failed with the following output:
+Change Dir: /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_68a17/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_68a17.dir/build.make CMakeFiles/cmTC_68a17.dir/build
+gmake[1]: Entering directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_68a17.dir/CheckSymbolExists.cxx.o
+/cm/shared/ex3-modules/0.5.0/pkgs/gcc-10.1.0/bin/g++-10.1    -std=c++17 -O2 -mavx -funroll-loops  -fPIE   -o CMakeFiles/cmTC_68a17.dir/CheckSymbolExists.cxx.o -c /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx
+/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx: In function ‘int main(int, char**)’:
+/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx:7:24: error: ‘identity’ is not a member of ‘std’
+    7 |   return ((int*)(&std::identity))[argc];
+      |                        ^~~~~~~~
+gmake[1]: *** [CMakeFiles/cmTC_68a17.dir/build.make:86: CMakeFiles/cmTC_68a17.dir/CheckSymbolExists.cxx.o] Error 1
+gmake[1]: Leaving directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:141: cmTC_68a17/fast] Error 2
+
+
+File /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx:
+/* */
+#include <functional>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+  return ((int*)(&std::identity))[argc];
+}
+Determining if the Fortran sgemm exists failed with the following output:
+Change Dir: /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_67d44/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_67d44.dir/build.make CMakeFiles/cmTC_67d44.dir/build
+gmake[1]: Entering directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_67d44.dir/testFortranCompiler.f.o
+/cm/shared/ex3-modules/0.5.0/pkgs/gcc-10.1.0/bin/gfortran-10.1   -O3 -DNDEBUG -O3 -fPIE   -c /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_67d44.dir/testFortranCompiler.f.o
+Linking Fortran executable cmTC_67d44
+/cm/shared/ex3-modules/0.5.0/pkgs/cmake-3.17.2/bin/cmake -E cmake_link_script CMakeFiles/cmTC_67d44.dir/link.txt --verbose=1
+/cm/shared/ex3-modules/0.5.0/pkgs/gcc-10.1.0/bin/gfortran-10.1      -O3 -DNDEBUG -O3 CMakeFiles/cmTC_67d44.dir/testFortranCompiler.f.o  -o cmTC_67d44 
+/usr/bin/ld: CMakeFiles/cmTC_67d44.dir/testFortranCompiler.f.o: in function `main':
+testFortranCompiler.f:(.text.startup+0x1d): undefined reference to `sgemm_'
+collect2: error: ld returned 1 exit status
+gmake[1]: *** [CMakeFiles/cmTC_67d44.dir/build.make:107: cmTC_67d44] Error 1
+gmake[1]: Leaving directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:141: cmTC_67d44/fast] Error 2
+
+
+
+Determining if the include file gmpxx.h exists failed with the following output:
+Change Dir: /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_5c8a4/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_5c8a4.dir/build.make CMakeFiles/cmTC_5c8a4.dir/build
+gmake[1]: Entering directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_5c8a4.dir/CheckIncludeFile.cxx.o
+/cm/shared/ex3-modules/0.5.0/pkgs/gcc-10.1.0/bin/g++-10.1    -std=c++17 -O2 -mavx -funroll-loops  -O3 -DNDEBUG -fPIE   -o CMakeFiles/cmTC_5c8a4.dir/CheckIncludeFile.cxx.o -c /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/CheckIncludeFile.cxx
+/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/CheckIncludeFile.cxx:1:10: fatal error: gmpxx.h: No such file or directory
+    1 | #include <gmpxx.h>
+      |          ^~~~~~~~~
+compilation terminated.
+gmake[1]: *** [CMakeFiles/cmTC_5c8a4.dir/build.make:86: CMakeFiles/cmTC_5c8a4.dir/CheckIncludeFile.cxx.o] Error 1
+gmake[1]: Leaving directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:141: cmTC_5c8a4/fast] Error 2
+
+
+
+Determining location of GMP, GMPxx failed:
+Include directory: GMPXX_INCLUDE_DIR-NOTFOUND
+gmp library directory: GMP_LIB-NOTFOUND
+gmpxx library directory: GMPXX_LIB-NOTFOUND
+
+Performing C++ SOURCE FILE Test TBB_COMPILE_TEST failed with the following output:
+Change Dir: /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_7b613/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_7b613.dir/build.make CMakeFiles/cmTC_7b613.dir/build
+gmake[1]: Entering directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_7b613.dir/src.cxx.o
+/cm/shared/ex3-modules/0.5.0/pkgs/gcc-10.1.0/bin/g++-10.1  -D_TBB_CPP0X  -std=c++17 -O2 -mavx -funroll-loops -DTBB_COMPILE_TEST -O3 -DNDEBUG -fPIE   -o CMakeFiles/cmTC_7b613.dir/src.cxx.o -c /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/src.cxx
+/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/src.cxx:2:10: fatal error: tbb/tbb.h: No such file or directory
+    2 | #include <tbb/tbb.h>
+      |          ^~~~~~~~~~~
+compilation terminated.
+gmake[1]: *** [CMakeFiles/cmTC_7b613.dir/build.make:86: CMakeFiles/cmTC_7b613.dir/src.cxx.o] Error 1
+gmake[1]: Leaving directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:141: cmTC_7b613/fast] Error 2
+
+
+Source file was:
+
+#include <tbb/tbb.h>
+#include <numeric>
+
+int main()
+{
+  int x[10] = {0};
+  tbb::parallel_for(0,10,[&](int i){ x[i] = i; });
+  return !(std::accumulate(x,x+10,0) == (9*10)/2);
+}
+
+Determining location of psurface failed:
+Include directory: 
+Library directory: 
+
+Performing C SOURCE FILE Test SUPERLU_MIN_VERSION_4 failed with the following output:
+Change Dir: /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_9199e/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_9199e.dir/build.make CMakeFiles/cmTC_9199e.dir/build
+gmake[1]: Entering directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_9199e.dir/src.c.o
+/cm/shared/ex3-modules/0.5.0/pkgs/gcc-10.1.0/bin/gcc-10.1   -DSUPERLU_MIN_VERSION_4 -O3 -DNDEBUG -fPIE   -o CMakeFiles/cmTC_9199e.dir/src.c.o   -c /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/src.c
+/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/src.c:3:10: fatal error: supermatrix.h: No such file or directory
+    3 | #include <supermatrix.h>
+      |          ^~~~~~~~~~~~~~~
+compilation terminated.
+gmake[1]: *** [CMakeFiles/cmTC_9199e.dir/build.make:86: CMakeFiles/cmTC_9199e.dir/src.c.o] Error 1
+gmake[1]: Leaving directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:141: cmTC_9199e/fast] Error 2
+
+
+Source file was:
+
+typedef int int_t;
+#include <supermatrix.h>
+#include <slu_util.h>
+int main()
+{
+  SuperLUStat_t stat;
+  stat.expansions=8;
+  return 0;
+}
+Performing C SOURCE FILE Test SUPERLU_MIN_VERSION_4_3 failed with the following output:
+Change Dir: /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_d6cb0/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_d6cb0.dir/build.make CMakeFiles/cmTC_d6cb0.dir/build
+gmake[1]: Entering directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_d6cb0.dir/src.c.o
+/cm/shared/ex3-modules/0.5.0/pkgs/gcc-10.1.0/bin/gcc-10.1   -DSUPERLU_MIN_VERSION_4_3 -O3 -DNDEBUG -fPIE   -o CMakeFiles/cmTC_d6cb0.dir/src.c.o   -c /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/src.c
+/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/src.c:2:10: fatal error: slu_ddefs.h: No such file or directory
+    2 | #include <slu_ddefs.h>
+      |          ^~~~~~~~~~~~~
+compilation terminated.
+gmake[1]: *** [CMakeFiles/cmTC_d6cb0.dir/build.make:86: CMakeFiles/cmTC_d6cb0.dir/src.c.o] Error 1
+gmake[1]: Leaving directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:141: cmTC_d6cb0/fast] Error 2
+
+
+Source file was:
+
+#include <slu_ddefs.h>
+int main(void)
+{
+  return SLU_DOUBLE;
+}
+Performing C SOURCE FILE Test SUPERLU_MIN_VERSION_5 failed with the following output:
+Change Dir: /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_9b64b/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_9b64b.dir/build.make CMakeFiles/cmTC_9b64b.dir/build
+gmake[1]: Entering directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_9b64b.dir/src.c.o
+/cm/shared/ex3-modules/0.5.0/pkgs/gcc-10.1.0/bin/gcc-10.1   -DSUPERLU_MIN_VERSION_5 -O3 -DNDEBUG -fPIE   -o CMakeFiles/cmTC_9b64b.dir/src.c.o   -c /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/src.c
+/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/src.c:3:10: fatal error: supermatrix.h: No such file or directory
+    3 | #include <supermatrix.h>
+      |          ^~~~~~~~~~~~~~~
+compilation terminated.
+gmake[1]: *** [CMakeFiles/cmTC_9b64b.dir/build.make:86: CMakeFiles/cmTC_9b64b.dir/src.c.o] Error 1
+gmake[1]: Leaving directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:141: cmTC_9b64b/fast] Error 2
+
+
+Source file was:
+
+typedef int int_t;
+#include <supermatrix.h>
+#include <slu_util.h>
+int main(void)
+{
+  GlobalLU_t glu;
+  return 0;
+}
+Determining location of SuperLU failed:
+Include directory: 
+Library directory: 
+Found unsupported version: SuperLU < 4.0
+
+Determing location of ARPACK failed:
+Libraries to link against: 
+
+Determing location of ARPACK++ failed:
+Include directory: 
+Libraries to link against: 
+
+Performing C SOURCE FILE Test HAVE_CJSON failed with the following output:
+Change Dir: /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_a515c/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_a515c.dir/build.make CMakeFiles/cmTC_a515c.dir/build
+gmake[1]: Entering directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_a515c.dir/src.c.o
+/cm/shared/ex3-modules/0.5.0/pkgs/gcc-10.1.0/bin/gcc-10.1   -std=c99 -DHAVE_CJSON -O3 -DNDEBUG -fPIE   -o CMakeFiles/cmTC_a515c.dir/src.c.o   -c /home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/src.c
+/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp/src.c:2:10: fatal error: cjson/cJSON.h: No such file or directory
+    2 | #include <cjson/cJSON.h>
+      |          ^~~~~~~~~~~~~~~
+compilation terminated.
+gmake[1]: *** [CMakeFiles/cmTC_a515c.dir/build.make:86: CMakeFiles/cmTC_a515c.dir/src.c.o] Error 1
+gmake[1]: Leaving directory '/home/erikhs/MatrixProblems/build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:141: cmTC_a515c/fast] Error 2
+
+
+Source file was:
+#include <stdlib.h>
+#include <cjson/cJSON.h>
+int main (void) {
+    cJSON root;
+  return 0;
+}

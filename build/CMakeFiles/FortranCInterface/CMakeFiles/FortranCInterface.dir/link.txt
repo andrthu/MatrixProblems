@@ -1,0 +1,1 @@
+/cm/shared/ex3-modules/0.5.0/pkgs/gcc-10.1.0/bin/gfortran-10.1   -O3 -DNDEBUG -O3 CMakeFiles/FortranCInterface.dir/main.F.o CMakeFiles/FortranCInterface.dir/call_sub.f.o CMakeFiles/FortranCInterface.dir/call_mod.f90.o  -o FortranCInterface  libsymbols.a libmyfort.a 

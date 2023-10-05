@@ -1,0 +1,24 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/erikhs/MatrixProblems/src/MatrixProblems.cc
+config.h
+/home/erikhs/MatrixProblems/src/config.h
+iostream
+-
+dune/common/parallel/mpihelper.hh
+-
+dune/common/exceptions.hh
+-
+
+FC.h
+
+config.h
+FC.h
+FC.h
+

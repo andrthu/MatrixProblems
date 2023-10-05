@@ -59,10 +59,10 @@ void gen_dim_jsonSolve(int argc, char** argv)
 
     std::string pc_Type = prm_json.get<std::string>("preconditioner.type");
     if (pc_Type == "cpr") {
-	prm_json.put("preconditioner.coarsesolver.preconditioner.verbosity", 10);
+	prm_json.put("preconditioner.coarsesolver.preconditioner.verbosity", 0);//10);
     }
-    prm_json.put("preconditioner.verbosity", 10);
-    prm_json.put("verbosity", 2);
+    prm_json.put("preconditioner.verbosity", 0);//10);
+    prm_json.put("verbosity", 2);//0);//2);
     //prm_json.put("tol", 0.001);
     //prm_json.put("maxiter", 30);
     std::function<Vec()> quasi;
@@ -75,10 +75,366 @@ void gen_dim_jsonSolve(int argc, char** argv)
     auto fs_json = std::make_unique<FlexibleSolverType>(linOp, *parComm, prm_json, quasi, pidx);
 
     Vec x(rhs_loc.size());
-    x=0;
-    Vec crhs(rhs_loc);
+    //x=0;
+    //Vec crhs(rhs_loc);
     Dune::InverseOperatorResult stat;
-    fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
+    //fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
+
+    // Initialise the list of parameters with initial, min and max values
+    int num_parameters = 12;
+    std::string preconditioner_parameters[num_parameters][5] = {
+        {
+            "preconditioner.finesmoother.relaxation",
+            "0.9",
+            "0",
+            "1",
+            "double"
+        },
+        {
+            "preconditioner.pre_smooth",
+            "1",
+            "0",
+            "10",
+            "int"
+        },
+        {
+            "preconditioner.post_smooth",
+            "1",
+            "0",
+            "10",
+            "int"
+        },
+        {
+            "preconditioner.coarsesolver.maxiter",
+            "1",
+            "1",
+            "10",
+            "int"
+        },
+        {
+            "preconditioner.coarsesolver.tol",
+            "0.10000000000000001",
+            "0.00001",
+            "1",
+            "double"
+        },
+        {
+            "preconditioner.coarsesolver.preconditioner.alpha",
+            "0.33333333333300003",
+            "0",
+            "1",
+            "double"
+        },
+        {
+            "preconditioner.coarsesolver.preconditioner.relaxation",
+            "1",
+            "0",
+            "1",
+            "double"
+        },
+        {
+            "preconditioner.coarsesolver.preconditioner.iterations",
+            "1",
+            "1",
+            "10",
+            "int"
+        },
+        {
+            "preconditioner.coarsesolver.preconditioner.coarsenTarget",
+            "4200",
+            "100",
+            "10000",
+            "int"
+        },
+        {
+            "preconditioner.coarsesolver.preconditioner.pre_smooth",
+            "1",
+            "0",
+            "10",
+            "int"
+        },
+        {
+            "preconditioner.coarsesolver.preconditioner.post_smooth",
+            "1",
+            "0",
+            "10",
+            "int"
+        },
+        {
+            "preconditioner.coarsesolver.preconditioner.maxlevel",
+            "15",
+            "1",
+            "30",
+            "int"
+        }
+    };
+
+    // Initialise other necessary variables and arrays
+    int num_time_measurement = 3;
+    int num_iterations = 30;
+    int num_perturbations = 5;
+    double times[num_iterations+1];
+    double iterations[num_iterations+1];
+    double new_parameter_values_list[num_perturbations+1][num_parameters];
+    double new_times_list[num_perturbations+1];
+    double new_iterations_list[num_parameters+1];
+    
+    // Set seed for random number generator (do we need this?)
+    std::srand(std::time(0));
+
+    // Start main loop over number of iterations (plus one, since we need the initial run)
+    for (int i = 0; i < num_iterations + 1; i++) {
+        
+        // First iterations is just used to solve using the initial parameter values
+        if (i == 0) {
+            for (int j = 0; j < num_parameters; j++) {
+                prm_json.put(preconditioner_parameters[j][0], preconditioner_parameters[j][1]);
+            }
+            auto fs_json = std::make_unique<FlexibleSolverType>(linOp, *parComm, prm_json, quasi, pidx);
+            times[0] = std::numeric_limits<double>::infinity();
+            iterations[0] = std::numeric_limits<double>::infinity();
+            for (int k = 0; k < num_time_measurement; k++) {
+                x = 0;
+                Vec crhs(rhs_loc);
+                fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
+                if (stat.elapsed < times[0]) {
+                    times[0] = stat.elapsed;
+                    iterations[0] = stat.iterations;
+                }
+            }
+            if (rank == 0) {
+                std::cout << "Initial parameters: (" << times[0] << ", " << iterations[0] << ")\n" << std::endl;
+            }
+            continue;
+        }
+        
+        // Print out iteration information
+        if (rank == 0 && i > 0) {
+            std::cout << "\nStarting iteration number: " << i << std::endl;
+        }
+
+        // Start inner loop over number of perturbations
+        for (int p = 0; p < num_perturbations; p++) {
+            if (rank == 0 && i > 0) {
+                std::cout << "\tPerturbation number: " << p + 1;
+            }
+
+            // Reset preconditioner to current best before perturbing values
+            for (int j = 0; j < num_parameters; j++) {
+                prm_json.put(preconditioner_parameters[j][0], preconditioner_parameters[j][1]);
+            }
+
+            // Perturb parameter values and ensure they fall within [min, max]
+            for (int j = 0; j < num_parameters; j++) {
+                double new_value = prm_json.get<double>(preconditioner_parameters[j][0]);
+                
+                // Only change some of the parameter values
+                if ((double)std::rand() / RAND_MAX > 0.8) {
+                    double min_value = stod(preconditioner_parameters[j][2]);
+                    double max_value = stod(preconditioner_parameters[j][3]);
+                    if (new_value == 0) {
+                        new_value = (max_value - min_value) * (double)std::rand() / RAND_MAX + min_value;
+                    }
+                    else if (new_value == 1 && preconditioner_parameters[j][4] == "int") {
+                        new_value = (max_value - min_value) * (double)std::rand() / RAND_MAX + min_value;
+                    }
+                    else {
+                        double random_number = (2 * (double)std::rand() / RAND_MAX - 1);
+                        new_value += new_value * random_number;
+                    }
+
+                    if (new_value < min_value) {
+                        new_value = min_value;
+                    }
+                    if (new_value > max_value) {
+                        new_value = max_value;
+                    }
+                    if (preconditioner_parameters[j][4] == "int") {
+                        new_value = std::round(new_value);
+                    }
+                }
+
+                prm_json.put(preconditioner_parameters[j][0], new_value);
+                new_parameter_values_list[p][j] = new_value;
+            }
+
+            // Solve the system using the perturbed parameter values
+            try {
+                auto fs_json = std::make_unique<FlexibleSolverType>(linOp, *parComm, prm_json, quasi, pidx);
+                new_times_list[p] = std::numeric_limits<double>::infinity();
+                new_iterations_list[p] = std::numeric_limits<double>::infinity();
+                for (int k = 0; k < num_time_measurement; k++) {
+                    x = 0;
+                    Vec crhs_new(rhs_loc);
+                    fs_json->apply(x, crhs_new, prm_json.get<double>("tol", 0.001), stat);
+                    if (stat.elapsed < new_times_list[p]) {
+                        if (stat.iterations == 200) {
+                            new_times_list[p] = std::numeric_limits<double>::infinity();
+                            new_iterations_list[p] = std::numeric_limits<double>::infinity();
+                            break;
+                        }
+                        new_times_list[p] = stat.elapsed;
+                        new_iterations_list[p] = stat.iterations;
+                    }
+                }
+            } catch(...) {
+                new_times_list[p] = std::numeric_limits<double>::infinity();
+                new_iterations_list[p] = std::numeric_limits<double>::infinity();
+            }
+            for (int j = 0; j < num_parameters; j++) {
+                if (rank == 0) {
+                    std::cout << preconditioner_parameters[j][0] << ": " << prm_json.get<std::string>(preconditioner_parameters[j][0]) << std::endl;
+                }
+            }
+            
+            // Print out time and iteration count for perturbed parameter values
+            if (rank == 0) {
+                std::cout << " (" << new_times_list[p] << ", " << new_iterations_list[p] << ")" << std::endl;
+            }
+        }
+
+        // Print out information about gradient step
+        if (rank == 0 && i > 0) {
+            std::cout << "\tGradient step";
+        }
+
+        // Reset preconditioner to current best before calculating gradient
+        for (int j = 0; j < num_parameters; j++) {
+            prm_json.put(preconditioner_parameters[j][0], preconditioner_parameters[j][1]);
+        }
+
+        // Calculate gradient values based on perturbed parameter values and results from
+        // solving the linear system with these values
+        double array[num_parameters];
+        double new_gradient_value;
+        for (int j = 0; j < num_parameters; j++) {
+            double old_value = stod(preconditioner_parameters[j][1]);
+            double min_value = stod(preconditioner_parameters[j][2]);
+            double max_value = stod(preconditioner_parameters[j][3]);
+            array[j] = 0;
+            int num_completed_computations = 0;
+            
+            for (int p = 0; p < num_perturbations; p++) {
+                if (std::isinf(new_times_list[p])) {
+                    continue;
+                }
+                num_completed_computations++;
+                array[j] += (times[i-1] - new_times_list[p]) * (new_parameter_values_list[p][j] - old_value);
+            }
+            if (old_value == 0) {
+                new_gradient_value = array[j] / (times[i-1] * num_completed_computations);
+            }
+            else {
+                new_gradient_value = old_value + array[j] / (old_value * times[i-1] * num_completed_computations);
+            }
+            if (new_gradient_value < min_value) {
+                new_gradient_value = min_value;
+            }
+            if (new_gradient_value > max_value) {
+                new_gradient_value = max_value;
+            }
+            if (preconditioner_parameters[j][4] == "int") {
+                new_gradient_value = std::round(new_gradient_value);
+            }
+            new_parameter_values_list[num_perturbations][j] = new_gradient_value;
+            prm_json.put(preconditioner_parameters[j][0], new_parameter_values_list[num_perturbations][j]);
+        }
+
+        // Ensure that not both pre- and post-smooth are 0
+        if (prm_json.get<double>("preconditioner.pre_smooth") == 0 && prm_json.get<double>("preconditioner.post_smooth") == 0) {
+            if ((double)std::rand() / RAND_MAX > 0.5) {
+                prm_json.put("preconditioner.pre_smooth", 1);
+                for (int j = 0; j < num_parameters; j++) {
+                    if (preconditioner_parameters[j][0] == "preconditioner.pre_smooth") {
+                        new_parameter_values_list[num_perturbations][j] = 1;
+                    }
+                }
+            }
+            else {
+                prm_json.put("preconditioner.post_smooth", 1);
+                for (int j = 0; j < num_parameters; j++) {
+                    if (preconditioner_parameters[j][0] == "preconditioner.post_smooth") {
+                        new_parameter_values_list[num_perturbations][j] = 1;
+                    }
+                }
+            }
+        }
+
+        // Solve the system using the gradient values
+        try {
+            auto fs_json = std::make_unique<FlexibleSolverType>(linOp, *parComm, prm_json, quasi, pidx);
+            new_times_list[num_perturbations] = std::numeric_limits<double>::infinity();
+            new_iterations_list[num_perturbations] = std::numeric_limits<double>::infinity();
+            for (int k = 0; k < num_time_measurement; k++) {
+                x = 0;
+                Vec crhs_new(rhs_loc);
+                fs_json->apply(x, crhs_new, prm_json.get<double>("tol", 0.001), stat);
+                if (stat.elapsed < new_times_list[num_perturbations]) {
+                    if (stat.iterations == 200) {
+                        new_times_list[num_perturbations] = std::numeric_limits<double>::infinity();
+                        new_iterations_list[num_perturbations] = std::numeric_limits<double>::infinity();
+                        break;
+                    }
+                    new_times_list[num_perturbations] = stat.elapsed;
+                    new_iterations_list[num_perturbations] = stat.iterations;
+                }
+            }
+        } catch(...) {
+                new_times_list[num_perturbations] = std::numeric_limits<double>::infinity();
+                new_iterations_list[num_perturbations] = std::numeric_limits<double>::infinity();
+        }
+        for (int j = 0; j < num_parameters; j++) {
+            if (rank == 0) {
+                std::cout << preconditioner_parameters[j][0] << ": " << prm_json.get<std::string>(preconditioner_parameters[j][0]) << std::endl;
+            }
+        }
+
+        // Print out time and iteration count for gradient parameter values
+        if (rank == 0) {
+            std::cout << " (" << new_times_list[num_perturbations] << ", " << new_iterations_list[num_perturbations] << ")" << std::endl;
+        }
+
+        // Find the fastest parameter values (from perturbed plus gradient)
+        int min_index = 0;
+        for (int indx = 1; indx < num_perturbations + 1; indx++) {
+            if (new_times_list[indx] < new_times_list[min_index]) {
+                min_index = indx;
+            }
+        }
+
+        // Compare the fastest parameter values with the current best and update
+        // current best if the new one is faster
+        if (new_times_list[min_index] < times[i-1]) {
+            times[i] = new_times_list[min_index];
+            iterations[i] = new_iterations_list[min_index];
+            if (rank == 0) {
+                std::cout << "Found a better parameter set!" << std::endl;
+            }
+            for (int j = 0; j < num_parameters; j++) {
+                preconditioner_parameters[j][1] = std::to_string(new_parameter_values_list[min_index][j]);
+                if (rank == 0) {
+                    std::cout << preconditioner_parameters[j][0] << ": " << preconditioner_parameters[j][1] << std::endl;
+                }
+            }
+        }
+        else {
+            times[i] = times[i-1];
+            iterations[i] = iterations[i-1];
+        }
+    }
+
+    // Print out final information about times and iterations over the optimisation,
+    // and the final best parameter values
+    if (rank == 0) {
+        std::cout << "\n(Times, iterations):" << std::endl;
+        for (int i = 0; i < sizeof(times)/sizeof(times[0]); i++) {
+            std::cout << "(" << times[i] << ", " << iterations[i] << ")" << std::endl;
+        }
+        std::cout << "\nParameter values:" << std::endl;
+        for (int i = 0; i < num_parameters; i++) {
+            std::cout << preconditioner_parameters[i][0] << ": " << preconditioner_parameters[i][1] << std::endl;
+        }
+    }
 }
 
 template<class Mat, class Vec>

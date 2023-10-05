@@ -1,0 +1,15 @@
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+CXX=/cm/shared/ex3-modules/0.5.0/pkgs/gcc-10.1.0/bin/g++-10.1 
+CC=/cm/shared/ex3-modules/0.5.0/pkgs/gcc-10.1.0/bin/gcc-10.1
+DEPENDENCIES=
+
+Name: MatrixProblems
+Version: 1
+Description: MatrixProblems module
+URL: http://dune-project.org/
+Requires: dune-common dune-istl dune-geometry dune-grid
+Libs: -L${libdir}
+Cflags: -I${includedir}
