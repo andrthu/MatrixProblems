@@ -22,6 +22,12 @@ module load flow/0.5.0/rpp-dune-amgcpr-branch-2
 module load cmake-3.17.2
 module load doxygen-1.8.18
 
+Alternative dependencies:
+=========================
+
+module load flow/gcc/ompi4.1.5/rpp-dune-amgcpr-branch
+module load cmake/gcc/3.27.7
+
 
 How to add file:
 =================
