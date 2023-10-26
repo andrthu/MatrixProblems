@@ -63,6 +63,8 @@ void gen_dim_jsonSolve(int argc, char** argv)
     }
     prm_json.put("preconditioner.verbosity", 0);//10);
     prm_json.put("verbosity", 2);//0);//2);
+    prm_json.put("preconditioner.coarsesolver.preconditioner.maxlevel", 15);
+    prm_json.put("preconditioner.coarsesolver.maxiter", 30);
     //prm_json.put("tol", 0.001);
     //prm_json.put("maxiter", 30);
     std::function<Vec()> quasi;
@@ -81,7 +83,7 @@ void gen_dim_jsonSolve(int argc, char** argv)
     //fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
 
     // Initialise the list of parameters with initial, min and max values
-    int num_parameters = 12;
+    int num_parameters = 11;
     std::string preconditioner_parameters[num_parameters][5] = {
         {
             "preconditioner.finesmoother.relaxation",
@@ -101,13 +103,6 @@ void gen_dim_jsonSolve(int argc, char** argv)
             "preconditioner.post_smooth",
             "1",
             "0",
-            "10",
-            "int"
-        },
-        {
-            "preconditioner.coarsesolver.maxiter",
-            "1",
-            "1",
             "10",
             "int"
         },
@@ -133,13 +128,6 @@ void gen_dim_jsonSolve(int argc, char** argv)
             "double"
         },
         {
-            "preconditioner.coarsesolver.preconditioner.iterations",
-            "1",
-            "1",
-            "10",
-            "int"
-        },
-        {
             "preconditioner.coarsesolver.preconditioner.coarsenTarget",
             "4200",
             "100",
@@ -161,10 +149,52 @@ void gen_dim_jsonSolve(int argc, char** argv)
             "int"
         },
         {
-            "preconditioner.coarsesolver.preconditioner.maxlevel",
-            "15",
+            "preconditioner.coarsesolver.preconditioner.beta",
+            "1e-5",
+            "0",
+            "0.1",
+            "double"
+        },
+        {
+            "preconditioner.coarsesolver.preconditioner.skip_isolated", //strongly connected to beta
             "1",
-            "30",
+            "0",
+            "1",
+            "bool"
+        },
+        {
+            "preconditioner.coarsesolver.preconditioner.prolongationdamping",
+            "1.6",
+            "0.5", //should perhaps be 1
+            "3",
+            "double"
+        },
+        {
+            "preconditioner.coarsesolver.preconditioner.maxdistance",
+            "2",
+            "1",
+            "10",
+            "int"
+        },
+        {
+            "preconditioner.coarsesolver.preconditioner.maxconnectivity",
+            "15",
+            "3",
+            "40",
+            "int"
+        },
+        {
+            "preconditioner.coarsesolver.preconditioner.maxaggsize",
+            "6",
+            "2",
+            "40",
+            "int"
+        },
+        {
+            "preconditioner.coarsesolver.preconditioner.minaggsize",
+            "4",
+            "1",
+            "20",
             "int"
         }
     };
@@ -232,7 +262,15 @@ void gen_dim_jsonSolve(int argc, char** argv)
                 if ((double)std::rand() / RAND_MAX > 0.8) {
                     double min_value = stod(preconditioner_parameters[j][2]);
                     double max_value = stod(preconditioner_parameters[j][3]);
-                    if (new_value == 0) {
+                    if (preconditioner_parameters[j][4] == "bool") {
+                        if (new_value == 0) {
+                            new_value = 1;
+                        }
+                        else {
+                            new_value = 0;
+                        }
+                    }
+                    else if (new_value == 0) {
                         new_value = (max_value - min_value) * (double)std::rand() / RAND_MAX + min_value;
                     }
                     else if (new_value == 1 && preconditioner_parameters[j][4] == "int") {
@@ -333,7 +371,7 @@ void gen_dim_jsonSolve(int argc, char** argv)
             if (new_gradient_value > max_value) {
                 new_gradient_value = max_value;
             }
-            if (preconditioner_parameters[j][4] == "int") {
+            if (preconditioner_parameters[j][4] == "int" || preconditioner_parameters[j][4] == "bool") {
                 new_gradient_value = std::round(new_gradient_value);
             }
             new_parameter_values_list[num_perturbations][j] = new_gradient_value;
