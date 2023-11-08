@@ -1,11 +1,13 @@
 add_executable("MatrixProblems" MatrixProblems.cc)
 cmake_policy(SET CMP0060 NEW)
+cmake_policy(SET CMP0074 NEW)
 
 find_package(Zoltan CONFIG REQUIRED)
 find_package(opm-common CONFIG REQUIRED)
 find_package(opm-grid CONFIG REQUIRED)
 find_package(opm-material CONFIG REQUIRED)
 find_package(opm-simulators CONFIG REQUIRED)
+
 
 
 
@@ -43,6 +45,39 @@ add_executable("jsonSolveCO2"
   partition/flexibleSolverTimer.hpp
   generalDim/jsonSolveGeneral.hpp)
 
+add_executable("multJsonSolve" 
+  multJsonSolve.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/multJsonSolveGeneral.hpp)
+
+add_executable("multJsonSolveCO2" 
+  multJsonSolveCO2.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/multJsonSolveGeneral.hpp)
 
 add_executable("amgCprTest"
   amgCprTest.cpp
@@ -122,6 +157,8 @@ add_executable("eclipseIO"
 set(opm_dep
   jsonSolve
   jsonSolveCO2
+  multJsonSolve
+  multJsonSolveCO2
   amgCprTest
   amgCprCo2Test
   twoLevelMethodTest

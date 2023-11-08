@@ -81,6 +81,7 @@ void gen_dim_jsonSolve(int argc, char** argv)
     fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
 }
 
+
 template<class Mat, class Vec>
 void gen_dim_jsonSolve_extended(int argc, char** argv)
 {
