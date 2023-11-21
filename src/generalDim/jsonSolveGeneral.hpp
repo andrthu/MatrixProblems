@@ -59,12 +59,12 @@ void gen_dim_jsonSolve(int argc, char** argv)
 
     std::string pc_Type = prm_json.get<std::string>("preconditioner.type");
     if (pc_Type == "cpr") {
-	prm_json.put("preconditioner.coarsesolver.preconditioner.verbosity", 0);//10);
+	prm_json.put("preconditioner.coarsesolver.preconditioner.verbosity", 10);//0);//10);
     }
-    prm_json.put("preconditioner.verbosity", 0);//10);
+    prm_json.put("preconditioner.verbosity", 10);//0);//10);
     prm_json.put("verbosity", 2);//0);//2);
     prm_json.put("preconditioner.coarsesolver.preconditioner.maxlevel", 15);
-    prm_json.put("preconditioner.coarsesolver.maxiter", 30);
+    prm_json.put("preconditioner.coarsesolver.maxiter", 1);
     //prm_json.put("tol", 0.001);
     //prm_json.put("maxiter", 30);
     std::function<Vec()> quasi;
@@ -83,7 +83,7 @@ void gen_dim_jsonSolve(int argc, char** argv)
     //fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
 
     // Initialise the list of parameters with initial, min and max values
-    int num_parameters = 11;
+    int num_parameters = 15;
     std::string preconditioner_parameters[num_parameters][5] = {
         {
             "preconditioner.finesmoother.relaxation",
@@ -105,13 +105,6 @@ void gen_dim_jsonSolve(int argc, char** argv)
             "0",
             "10",
             "int"
-        },
-        {
-            "preconditioner.coarsesolver.tol",
-            "0.10000000000000001",
-            "0.00001",
-            "1",
-            "double"
         },
         {
             "preconditioner.coarsesolver.preconditioner.alpha",
@@ -246,7 +239,7 @@ void gen_dim_jsonSolve(int argc, char** argv)
         // Start inner loop over number of perturbations
         for (int p = 0; p < num_perturbations; p++) {
             if (rank == 0 && i > 0) {
-                std::cout << "\tPerturbation number: " << p + 1;
+                std::cout << "\tPerturbation number: " << p + 1 << std::endl;
             }
 
             // Reset preconditioner to current best before perturbing values
@@ -292,8 +285,21 @@ void gen_dim_jsonSolve(int argc, char** argv)
                     }
                 }
 
+                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.minaggsize") {
+                    int temp_maxaggsize = prm_json.get<int>("preconditioner.coarsesolver.preconditioner.maxaggsize");
+                    if (new_value > temp_maxaggsize) {
+                        new_value = temp_maxaggsize;
+                    }
+                }
+
                 prm_json.put(preconditioner_parameters[j][0], new_value);
                 new_parameter_values_list[p][j] = new_value;
+            }
+
+            for (int j = 0; j < num_parameters; j++) {
+                if (rank == 0) {
+                    std::cout << preconditioner_parameters[j][0] << ": " << prm_json.get<std::string>(preconditioner_parameters[j][0]) << std::endl;
+                }
             }
 
             // Solve the system using the perturbed parameter values
@@ -319,21 +325,16 @@ void gen_dim_jsonSolve(int argc, char** argv)
                 new_times_list[p] = std::numeric_limits<double>::infinity();
                 new_iterations_list[p] = std::numeric_limits<double>::infinity();
             }
-            for (int j = 0; j < num_parameters; j++) {
-                if (rank == 0) {
-                    std::cout << preconditioner_parameters[j][0] << ": " << prm_json.get<std::string>(preconditioner_parameters[j][0]) << std::endl;
-                }
-            }
             
             // Print out time and iteration count for perturbed parameter values
             if (rank == 0) {
-                std::cout << " (" << new_times_list[p] << ", " << new_iterations_list[p] << ")" << std::endl;
+                std::cout << "\t(" << new_times_list[p] << ", " << new_iterations_list[p] << ")\n" << std::endl;
             }
         }
 
         // Print out information about gradient step
         if (rank == 0 && i > 0) {
-            std::cout << "\tGradient step";
+            std::cout << "\tGradient step" << std::endl;
         }
 
         // Reset preconditioner to current best before calculating gradient
@@ -359,6 +360,7 @@ void gen_dim_jsonSolve(int argc, char** argv)
                 num_completed_computations++;
                 array[j] += (times[i-1] - new_times_list[p]) * (new_parameter_values_list[p][j] - old_value);
             }
+            //new_gradient_value = old_value + array[j] / (times[i-1] * num_completed_computations);
             if (old_value == 0) {
                 new_gradient_value = array[j] / (times[i-1] * num_completed_computations);
             }
@@ -373,6 +375,12 @@ void gen_dim_jsonSolve(int argc, char** argv)
             }
             if (preconditioner_parameters[j][4] == "int" || preconditioner_parameters[j][4] == "bool") {
                 new_gradient_value = std::round(new_gradient_value);
+            }
+            if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.minaggsize") {
+                int temp_maxaggsize = prm_json.get<int>("preconditioner.coarsesolver.preconditioner.maxaggsize");
+                if (new_gradient_value > temp_maxaggsize) {
+                    new_gradient_value = temp_maxaggsize;
+                }
             }
             new_parameter_values_list[num_perturbations][j] = new_gradient_value;
             prm_json.put(preconditioner_parameters[j][0], new_parameter_values_list[num_perturbations][j]);
@@ -395,6 +403,12 @@ void gen_dim_jsonSolve(int argc, char** argv)
                         new_parameter_values_list[num_perturbations][j] = 1;
                     }
                 }
+            }
+        }
+
+        for (int j = 0; j < num_parameters; j++) {
+            if (rank == 0) {
+                std::cout << preconditioner_parameters[j][0] << ": " << prm_json.get<std::string>(preconditioner_parameters[j][0]) << std::endl;
             }
         }
 
@@ -421,23 +435,22 @@ void gen_dim_jsonSolve(int argc, char** argv)
                 new_times_list[num_perturbations] = std::numeric_limits<double>::infinity();
                 new_iterations_list[num_perturbations] = std::numeric_limits<double>::infinity();
         }
-        for (int j = 0; j < num_parameters; j++) {
-            if (rank == 0) {
-                std::cout << preconditioner_parameters[j][0] << ": " << prm_json.get<std::string>(preconditioner_parameters[j][0]) << std::endl;
-            }
-        }
 
         // Print out time and iteration count for gradient parameter values
         if (rank == 0) {
-            std::cout << " (" << new_times_list[num_perturbations] << ", " << new_iterations_list[num_perturbations] << ")" << std::endl;
+            std::cout << "\t(" << new_times_list[num_perturbations] << ", " << new_iterations_list[num_perturbations] << ")\n" << std::endl;
         }
 
         // Find the fastest parameter values (from perturbed plus gradient)
         int min_index = 0;
+        bool is_gradient_lowest = false;
         for (int indx = 1; indx < num_perturbations + 1; indx++) {
             if (new_times_list[indx] < new_times_list[min_index]) {
                 min_index = indx;
             }
+        }
+        if (min_index == num_perturbations) {
+            is_gradient_lowest = true;
         }
 
         // Compare the fastest parameter values with the current best and update
@@ -447,6 +460,13 @@ void gen_dim_jsonSolve(int argc, char** argv)
             iterations[i] = new_iterations_list[min_index];
             if (rank == 0) {
                 std::cout << "Found a better parameter set!" << std::endl;
+                std::cout << "Time reduced from " << times[i-1] << " to " << times[i] << std::endl;
+                if (is_gradient_lowest) {
+                    std::cout << "Gradient update" << std::endl;
+                }
+                else {
+                    std::cout << "Non-gradient update" << std::endl;
+                }
             }
             for (int j = 0; j < num_parameters; j++) {
                 preconditioner_parameters[j][1] = std::to_string(new_parameter_values_list[min_index][j]);
