@@ -52,6 +52,25 @@ void readFromDir(Mat3& A, Mat1& trans, Mat1& wells, Vec& rhs, char* dirName, int
     readMatMarketObject(rhs, r_name.data());
 }
 
+template<class Mat3, class Mat1, class Vec>
+void readFromDir(Mat3& A, Mat1& trans, Mat1& wells, Vec& rhs, std::string dirName, int rank)
+{
+    std::string d = dirName;
+    std::string A_name = d + std::string("/BlackoilMatrix.mtx");
+    std::string t_name = d + std::string("/transAdj.mtx");
+    std::string w_name = d + std::string("/wellAdj.mtx");
+    std::string r_name = d + std::string("/BlackoilRHS.vec");
+
+    if (rank == 0) {std::cout<<"Read Matrix"<<std::endl;}
+    readMatMarketObject(A, A_name.data());
+    if (rank == 0) {
+	readMatMarketObject(trans, t_name.data());
+	readMatMarketObject(wells, w_name.data());
+    }
+    if (rank == 0) {std::cout<<"Read RHS"<<std::endl;}
+    readMatMarketObject(rhs, r_name.data());
+}
+
 template<class Mat3, class Mat1, class Vec, class D>
 void handleMatrixSystemInput(int argc, char** argv, Mat3& A, Mat1& trans, 
 			     Mat1& wells, Vec& rhs, D& DR, int rank)
@@ -134,6 +153,67 @@ bool help_detect(int argc, char** argv)
     }
     return false;
     
+}
+
+bool help_detect_mult(int argc, char** argv)
+{
+    namespace po = boost::program_options;
+
+    po::options_description desc("Program solving linear systems generated from reservoir simulations. Runs in parallel and uses transmissibilty for partitioning. multJsonSolve executable solves 3-phase black-oil systems and multJsonSolveCO2 solves 2-phase CO2-store systems. \nHow to run: \n .\\multJsonSolve matrix/dir/path1 ... matrix/dir/pathN \n\nMatrix directory must contain four files: \n  *BlackoilMatrix.mtx: Matrix file.\n  *BlackoilRHS.vec: Vector file. \n  *transAdj.mtx: Transmissibility file for partitioning. \n  *wellAdj.mtx: Well connections for partitioning. \n\nBlack-oil system matrices can be found in the directory: /global/D1/homes/andreast/linear_systems/3-phase/ \nCO2 stsyems in: /global/D1/homes/andreast/linear_systems/2-phase/ \n\n Options");
+    desc.add_options()
+	("help", "produce help message");
+    
+    po::variables_map vm;
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    if (vm.count("help")) {
+	std::cout << desc << "\n";
+	return true;
+    }
+    return false;
+    
+}
+
+std::vector<std::string> parse_multiple_systems(int argc, char** argv)
+{
+    namespace po = boost::program_options;
+
+    int opt;
+    po::options_description desc("Allowed options");
+    desc.add_options()
+	("help", "produce help message")
+	("optimization", po::value<int>(&opt)->default_value(10), 
+	 "optimization level")
+	("include-path,I", po::value< std::vector<std::string> >(), 
+	 "include path")
+	("input-file", po::value< std::vector<std::string> >(), "input file")
+	;
+    po::positional_options_description p;
+    p.add("input-file", -1);
+
+    po::variables_map vm;
+    po::store(po::command_line_parser(argc, argv).
+	      options(desc).positional(p).run(), vm);
+    po::notify(vm);
+
+    if (vm.count("include-path"))
+    {
+	std::cout << "Include paths are: " << "\n";
+	//<< vm["include-path"].as< std::vector<std::string> >() << "\n";
+    }
+    
+    if (vm.count("input-file"))
+    {
+	auto infi = vm["input-file"].as< std::vector<std::string> >();
+	for (int i = 0; i<infi.size(); ++i)
+	    std::cout << infi[i] << " ";
+	std::cout << "\n";
+	//std::cout << "Input files are: " << "\n";
+	//<< vm["input-file"].as< std::vector<std::string> >() << "\n";
+    }
+
+    std::cout << "Optimization level is " << opt << "\n";
+
+    return vm["input-file"].as< std::vector<std::string> >();
 }
 
 template<class MatB3, class MatB1>
