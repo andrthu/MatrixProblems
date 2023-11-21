@@ -37,6 +37,8 @@ void gen_dim_jsonSolve(int argc, char** argv)
     typedef Opm::ParallelOverlappingILU0<Mat,Vec,Vec,Comm> ILU;
     typedef Dune::FlexibleSolver<Mat, Vec> FlexibleSolverType;
 
+    const auto block_size = Vec::block_type::dimension;
+    
     CollectiveCommunication cc(MPI_COMM_WORLD);
     int rank = cc.rank();
 
@@ -67,7 +69,9 @@ void gen_dim_jsonSolve(int argc, char** argv)
     //prm_json.put("maxiter", 30);
     std::function<Vec()> quasi;
     int pidx = 1;
-
+    if (block_size == 2)
+	pidx = 0;
+    
     quasi = [A_loc, pidx]() {
 	return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(A_loc, pidx, false);
     };
