@@ -61,12 +61,16 @@ void gen_dim_jsonSolve(int argc, char** argv)
 
     std::string pc_Type = prm_json.get<std::string>("preconditioner.type");
     if (pc_Type == "cpr") {
-	prm_json.put("preconditioner.coarsesolver.preconditioner.verbosity", 10);//0);//10);
+    	prm_json.put("preconditioner.coarsesolver.preconditioner.verbosity", 10);//0);//10);
     }
     prm_json.put("preconditioner.verbosity", 10);//0);//10);
     prm_json.put("verbosity", 2);//0);//2);
-    prm_json.put("preconditioner.coarsesolver.preconditioner.maxlevel", 15);
-    prm_json.put("preconditioner.coarsesolver.maxiter", 1);
+    if (pc_Type == "cpr") {
+        prm_json.put("preconditioner.coarsesolver.preconditioner.maxlevel", 15);
+        prm_json.put("preconditioner.coarsesolver.maxiter", 1);
+    } else if (pc_Type == "amg") {
+        prm_json.put("preconditioner.maxlevel", 15);
+    }
     //prm_json.put("tol", 0.001);
     //prm_json.put("maxiter", 30);
     std::function<Vec()> quasi;
@@ -87,8 +91,16 @@ void gen_dim_jsonSolve(int argc, char** argv)
     //fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
 
     // Initialise the list of parameters with initial, min and max values
-    int num_parameters = 15;
-    std::string preconditioner_parameters[num_parameters][5] = {
+    int num_cpr_parameters = 3;
+    int num_amg_parameters = 13;
+    int num_parameters;
+    if (pc_Type == "cpr") {
+        num_parameters = num_cpr_parameters + num_amg_parameters;
+    } else if (pc_Type == "amg") {
+        num_parameters = num_amg_parameters;
+    }
+
+    std::string cpr_parameters[][5] = {
         {
             "preconditioner.finesmoother.relaxation",
             "0.9",
@@ -193,8 +205,121 @@ void gen_dim_jsonSolve(int argc, char** argv)
             "1",
             "20",
             "int"
+        },
+        {
+            "preconditioner.coarsesolver.preconditioner.gamma",
+            "1",
+            "1",
+            "3",
+            "int"
         }
     };
+    std::string amg_parameters[][5] = {
+        {
+            "preconditioner.alpha",
+            "0.33333333333300003",
+            "0",
+            "1",
+            "double"
+        },
+        {
+            "preconditioner.relaxation",
+            "1",
+            "0",
+            "1",
+            "double"
+        },
+        {
+            "preconditioner.coarsenTarget",
+            "4200",
+            "100",
+            "10000",
+            "int"
+        },
+        {
+            "preconditioner.pre_smooth",
+            "1",
+            "0",
+            "10",
+            "int"
+        },
+        {
+            "preconditioner.post_smooth",
+            "1",
+            "0",
+            "10",
+            "int"
+        },
+        {
+            "preconditioner.beta",
+            "1e-5",
+            "0",
+            "0.1",
+            "double"
+        },
+        {
+            "preconditioner.skip_isolated", //strongly connected to beta
+            "1",
+            "0",
+            "1",
+            "bool"
+        },
+        {
+            "preconditioner.prolongationdamping",
+            "1.6",
+            "0.5", //should perhaps be 1
+            "3",
+            "double"
+        },
+        {
+            "preconditioner.maxdistance",
+            "2",
+            "1",
+            "10",
+            "int"
+        },
+        {
+            "preconditioner.maxconnectivity",
+            "15",
+            "3",
+            "40",
+            "int"
+        },
+        {
+            "preconditioner.maxaggsize",
+            "6",
+            "2",
+            "40",
+            "int"
+        },
+        {
+            "preconditioner.minaggsize",
+            "4",
+            "1",
+            "20",
+            "int"
+        },
+        {
+            "preconditioner.gamma",
+            "1",
+            "1",
+            "3",
+            "int"
+        }
+    };
+
+    std::string preconditioner_parameters[num_parameters][5];
+    int counter = 0;
+    while (counter < num_parameters) {
+        for (int i = 0; i < 5; i++) {
+            if (pc_Type == "cpr") {
+                preconditioner_parameters[counter][i] = cpr_parameters[counter][i];
+            } else if (pc_Type == "amg") {
+                preconditioner_parameters[counter][i] = amg_parameters[counter][i];
+            }
+        }
+        counter++;
+    }
 
     // Initialise other necessary variables and arrays
     int num_time_measurement = 3;
@@ -254,7 +379,7 @@ void gen_dim_jsonSolve(int argc, char** argv)
             // Perturb parameter values and ensure they fall within [min, max]
             for (int j = 0; j < num_parameters; j++) {
                 double new_value = prm_json.get<double>(preconditioner_parameters[j][0]);
-                
+
                 // Only change some of the parameter values
                 if ((double)std::rand() / RAND_MAX > 0.8) {
                     double min_value = stod(preconditioner_parameters[j][2]);
@@ -288,14 +413,19 @@ void gen_dim_jsonSolve(int argc, char** argv)
                         new_value = std::round(new_value);
                     }
                 }
-
-                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.minaggsize") {
-                    int temp_maxaggsize = prm_json.get<int>("preconditioner.coarsesolver.preconditioner.maxaggsize");
+                
+                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.minaggsize" || preconditioner_parameters[j][0] == "preconditioner.minaggsize") {
+                    int temp_maxaggsize;
+                    if (pc_Type == "cpr") {
+                        temp_maxaggsize = prm_json.get<int>("preconditioner.coarsesolver.preconditioner.maxaggsize");
+                    } else if (pc_Type == "amg") {
+                        temp_maxaggsize = prm_json.get<int>("preconditioner.maxaggsize");
+                    }
                     if (new_value > temp_maxaggsize) {
                         new_value = temp_maxaggsize;
                     }
                 }
-
+                
                 prm_json.put(preconditioner_parameters[j][0], new_value);
                 new_parameter_values_list[p][j] = new_value;
             }
@@ -305,7 +435,7 @@ void gen_dim_jsonSolve(int argc, char** argv)
                     std::cout << preconditioner_parameters[j][0] << ": " << prm_json.get<std::string>(preconditioner_parameters[j][0]) << std::endl;
                 }
             }
-
+            
             // Solve the system using the perturbed parameter values
             try {
                 auto fs_json = std::make_unique<FlexibleSolverType>(linOp, *parComm, prm_json, quasi, pidx);
@@ -380,8 +510,13 @@ void gen_dim_jsonSolve(int argc, char** argv)
             if (preconditioner_parameters[j][4] == "int" || preconditioner_parameters[j][4] == "bool") {
                 new_gradient_value = std::round(new_gradient_value);
             }
-            if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.minaggsize") {
-                int temp_maxaggsize = prm_json.get<int>("preconditioner.coarsesolver.preconditioner.maxaggsize");
+            if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.minaggsize" || preconditioner_parameters[j][0] == "preconditioner.minaggsize") {
+                int temp_maxaggsize;
+                if (pc_Type == "cpr") {
+                    temp_maxaggsize = prm_json.get<int>("preconditioner.coarsesolver.preconditioner.maxaggsize");
+                } else if (pc_Type == "amg") {
+                    temp_maxaggsize = prm_json.get<int>("preconditioner.maxaggsize");
+                }
                 if (new_gradient_value > temp_maxaggsize) {
                     new_gradient_value = temp_maxaggsize;
                 }
