@@ -96,7 +96,7 @@ Dune::IndexInfoFromGrid<int,int> getParallelInfoReorder(P& pid, const R& rid,
 
 
 template<class Comm, class C>
-void getIndexSetInfo(Comm comm, const C& cc, std::vector<int>& comTab, std::vector<int>& rowType, bool cellTogether=false)
+void getIndexSetInfo(Comm comm, const C& cc, std::vector<int>& comTab, std::vector<int>& rowType, bool cellTogether=false, bool printInfo=true)
 {
     auto indexSet = comm->indexSet();
 
@@ -124,39 +124,40 @@ void getIndexSetInfo(Comm comm, const C& cc, std::vector<int>& comTab, std::vect
     cc.gather(&total, totalVec, 1, 0);
 
     if (rank == 0) {
+	if (printInfo) {
+	    if (cellTogether) {
+		std::cout << std::endl;
+		for (int i = 0; i < size; ++i) {
+		    int ic = totalVec[i];
+		    int gc = ghostVec[i];
+		    std::cout << "Rank " << i << " numCells,ghostCells,InteriorSize: "<< ic << " "<<gc<< " "<< ic-gc <<std::endl;
+		}
+		std::cout << std::endl;
+	    }
+	    else {
+		std::cout << std::endl;
+		for (int i = 0; i < size; ++i) {
+		    int ic = totalVec[i];
+		    std::cout << "Rank " << i << " numCells: "<< ic <<std::endl;
+		}
+		std::cout << std::endl;
 
-	if (cellTogether) {
-	    std::cout << std::endl;
-	    for (int i = 0; i < size; ++i) {
-		int ic = totalVec[i];
-		int gc = ghostVec[i];
-		std::cout << "Rank " << i << " numCells,ghostCells,InteriorSize: "<< ic << " "<<gc<< " "<< ic-gc <<std::endl;
-	    }
-	    std::cout << std::endl;
-	}
-	else {
-	    std::cout << std::endl;
-	    for (int i = 0; i < size; ++i) {
-		int ic = totalVec[i];
-		std::cout << "Rank " << i << " numCells: "<< ic <<std::endl;
-	    }
-	    std::cout << std::endl;
+		std::cout << std::endl;
+		for (int i = 0; i < size; ++i) {
+		    int ic = totalVec[i];
+		    int gc = ghostVec[i];
+		    std::cout << "Rank " << i << " ghostCells: "<< gc <<std::endl;
+		}
+		std::cout << std::endl;
 
-	    std::cout << std::endl;
-	    for (int i = 0; i < size; ++i) {
-		int ic = totalVec[i];
-		int gc = ghostVec[i];
-		std::cout << "Rank " << i << " ghostCells: "<< gc <<std::endl;
+		std::cout << std::endl;
+		for (int i = 0; i < size; ++i) {
+		    int ic = totalVec[i];
+		    int gc = ghostVec[i];
+		    std::cout << "Rank " << i << " InteriorSize: "<< ic-gc <<std::endl;
+		}
+		std::cout << std::endl;
 	    }
-	    std::cout << std::endl;
-
-	    std::cout << std::endl;
-	    for (int i = 0; i < size; ++i) {
-		int ic = totalVec[i];
-		int gc = ghostVec[i];
-		std::cout << "Rank " << i << " InteriorSize: "<< ic-gc <<std::endl;
-	    }
-	    std::cout << std::endl;
 	}
     }
 

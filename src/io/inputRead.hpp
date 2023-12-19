@@ -53,7 +53,7 @@ void readFromDir(Mat3& A, Mat1& trans, Mat1& wells, Vec& rhs, char* dirName, int
 }
 
 template<class Mat3, class Mat1, class Vec>
-void readFromDir(Mat3& A, Mat1& trans, Mat1& wells, Vec& rhs, std::string dirName, int rank)
+void readFromDir(Mat3& A, Mat1& trans, Mat1& wells, Vec& rhs, std::string dirName, int rank, bool readWT=true)
 {
     std::string d = dirName;
     std::string A_name = d + std::string("/BlackoilMatrix.mtx");
@@ -61,14 +61,18 @@ void readFromDir(Mat3& A, Mat1& trans, Mat1& wells, Vec& rhs, std::string dirNam
     std::string w_name = d + std::string("/wellAdj.mtx");
     std::string r_name = d + std::string("/BlackoilRHS.vec");
 
-    if (rank == 0) {std::cout<<"Read Matrix"<<std::endl;}
-    readMatMarketObject(A, A_name.data());
     if (rank == 0) {
-	readMatMarketObject(trans, t_name.data());
-	readMatMarketObject(wells, w_name.data());
+	std::cout<<"Read Matrix"<<std::endl;
+	readMatMarketObject(A, A_name.data());
+	
+	if (readWT) {
+	    readMatMarketObject(trans, t_name.data());
+	    readMatMarketObject(wells, w_name.data());
+	}
+	std::cout<<"Read RHS"<<std::endl;
+	readMatMarketObject(rhs, r_name.data());
     }
-    if (rank == 0) {std::cout<<"Read RHS"<<std::endl;}
-    readMatMarketObject(rhs, r_name.data());
+
 }
 
 template<class Mat3, class Mat1, class Vec, class D>
@@ -195,6 +199,7 @@ std::vector<std::string> parse_multiple_systems(int argc, char** argv)
 	      options(desc).positional(p).run(), vm);
     po::notify(vm);
 
+    /*
     if (vm.count("include-path"))
     {
 	std::cout << "Include paths are: " << "\n";
@@ -210,8 +215,8 @@ std::vector<std::string> parse_multiple_systems(int argc, char** argv)
 	//std::cout << "Input files are: " << "\n";
 	//<< vm["input-file"].as< std::vector<std::string> >() << "\n";
     }
-
-    std::cout << "Optimization level is " << opt << "\n";
+    */
+    //std::cout << "Optimization level is " << opt << "\n";
 
     return vm["input-file"].as< std::vector<std::string> >();
 }
