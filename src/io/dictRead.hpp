@@ -66,7 +66,7 @@ public:
     dict[9]  = std::string("0");    //Include ghost rows off-diag adjecency
     dict[10] = std::string("10");   //Number of timing iterations
     dict[11] = std::string("1.0");  //base exp for log weights.
-    dict[12] = std::string("/home/andreast/fork_opm/test/linear_solver_config_files/2021/cpr/fieldCase1.json");
+    dict[12] = std::string("/global/D1/homes/andreast/linear_systems/patameters/cpr/fieldCase1.json");
     /*
     dict[7]  = std::string("2");    //DEBUG_LEVEL
     dict[8]  = std::string("10");   //PHG_REFINEMENT_LOOP_LIMIT
