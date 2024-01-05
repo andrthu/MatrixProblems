@@ -219,7 +219,16 @@ void constructLocalFromRoot(Mat A, Mat& A_loc, int N, Vec& rhs, Vec& rhs_loc, co
 }
 
 template<class Mat, class Vec, class D, class Comm, class C>
-void readMatOnRootAndDist(int argc, char** argv, Mat& A_loc, Vec& rhs_loc, D& DR, Comm& comm, std::shared_ptr<Comm>& parComm, const C& cc, bool gro=true)
+std::vector<int> readMatOnRootAndDist(int argc, char** argv, Mat& A_loc, Vec& rhs_loc,
+				      D& DR, Comm& comm, std::shared_ptr<Comm>& parComm,
+				      const C& cc, bool gro=true)
+{
+    std::vector<int> dummy;
+    return readMatOnRootAndDist(argc,argv,A_loc,rhs_loc,DR,comm,parComm,cc,dummy,gro,false);
+}
+
+template<class Mat, class Vec, class D, class Comm, class C>
+std::vector<int> readMatOnRootAndDist(int argc, char** argv, Mat& A_loc, Vec& rhs_loc, D& DR, Comm& comm, std::shared_ptr<Comm>& parComm, const C& cc, std::vector<int>& partVec, bool gro, bool usePartVec)
 {
     typedef Dune::FieldMatrix<double,1,1> Block;
     typedef Dune::BCRSMatrix<Block> Graph;
@@ -227,7 +236,9 @@ void readMatOnRootAndDist(int argc, char** argv, Mat& A_loc, Vec& rhs_loc, D& DR
     int rank = cc.rank();
 
     Graph trans, wells;
-
+    
+    std::vector<int> mpivec;
+    
     if (cc.size() > 0) {
 	Vec rhs;
 	Mat A, A_loc_;
@@ -245,7 +256,7 @@ void readMatOnRootAndDist(int argc, char** argv, Mat& A_loc, Vec& rhs_loc, D& DR
 	storeRowSizeFromRoot(A, row_size, cc);
 
 	//partition matrix
-	std::vector<int> mpivec(N, rank);
+	mpivec.resize(N, rank);
 	if (cc.size() > 1) {
 	    zoltanPartitionFunction(mpivec, trans, wells, cc, DR, row_size);
 	    //evalWellCommOnRoot(mpivec,wells,cc);
@@ -297,10 +308,18 @@ void readMatOnRootAndDist(int argc, char** argv, Mat& A_loc, Vec& rhs_loc, D& DR
 	bool ret = Dune::buildCommunication(g, setPartition, comm, parComm, redistInf.getInterface(), 0);
 	parComm->remoteIndices().template rebuild<false>();
     }
+    return mpivec;
 }
 
 template<class Mat, class Vec, class D, class Comm, class C>
-void readMatOnRootAndDist(std::string systemDir, Mat& A_loc, Vec& rhs_loc, D& DR, Comm& comm, std::shared_ptr<Comm>& parComm, const C& cc, bool gro=true)
+std::vector<int> readMatOnRootAndDist(std::string systemDir, Mat& A_loc, Vec& rhs_loc, D& DR, Comm& comm, std::shared_ptr<Comm>& parComm, const C& cc, bool gro=true)
+{
+    std::vector<int> dummy;
+    return readMatOnRootAndDist(systemDir,A_loc,rhs_loc,DR,comm,parComm,cc,dummy,gro,false);
+}
+
+template<class Mat, class Vec, class D, class Comm, class C>
+std::vector<int> readMatOnRootAndDist(std::string systemDir, Mat& A_loc, Vec& rhs_loc, D& DR, Comm& comm, std::shared_ptr<Comm>& parComm, const C& cc, std::vector<int> partVec, bool gro=true, bool usePartVec=false)
 {
     typedef Dune::FieldMatrix<double,1,1> Block;
     typedef Dune::BCRSMatrix<Block> Graph;
@@ -309,13 +328,14 @@ void readMatOnRootAndDist(std::string systemDir, Mat& A_loc, Vec& rhs_loc, D& DR
 
     Graph trans, wells;
 
+    std::vector<int> mpivec;
     if (cc.size() > 0) {
 	Vec rhs;
 	Mat A, A_loc_;
 
 	if (rank == 0)
-	    readFromDir(A,trans,wells,rhs,systemDir,rank);
-	//handleMatrixSystemInputSomeRanks(argc, argv, A, trans, wells, rhs, DR, cc, rank==0);
+	    readFromDir(A,trans,wells,rhs,systemDir,rank, !usePartVec);
+
 	DR.dict[5] = "2"; //Zoltan debug level
 	if (rank == 0) {std::cout << "Reading Matrices complete"<< std::endl;}
 	
@@ -328,12 +348,16 @@ void readMatOnRootAndDist(std::string systemDir, Mat& A_loc, Vec& rhs_loc, D& DR
 	storeRowSizeFromRoot(A, row_size, cc);
 
 	//partition matrix
-	std::vector<int> mpivec(N, rank);
+	mpivec.resize(N, rank);
 	if (cc.size() > 1) {
-	    zoltanPartitionFunction(mpivec, trans, wells, cc, DR, row_size);
+	    if (usePartVec)
+		mpivec = partVec;
+	    else
+		zoltanPartitionFunction(mpivec, trans, wells, cc, DR, row_size);
 	    //evalWellCommOnRoot(mpivec,wells,cc);
 	}
-	if (rank == 0) {std::cout << "Zoltan partition complete"<< std::endl;}
+	if (!usePartVec)
+	    if (rank == 0) {std::cout << "Zoltan partition complete"<< std::endl;}
 	cc.barrier();
 	constructLocalFromRoot(A, A_loc_, N, rhs, rhs_loc, mpivec, comm, parComm, cc);
 	if (rank == 0) {std::cout << "Local Matrix construction complete"<< std::endl;}
@@ -341,9 +365,11 @@ void readMatOnRootAndDist(std::string systemDir, Mat& A_loc, Vec& rhs_loc, D& DR
 	cc.barrier();
 	std::vector<int> rowType(A_loc_.N(), 0);
 	std::vector<int> comTab;
-	getIndexSetInfo(parComm, cc, comTab, rowType);
-	printComTabOnRoot(cc, comTab);
+	getIndexSetInfo(parComm, cc, comTab, rowType, false, !usePartVec);
+	if (!usePartVec) {
 
+	    printComTabOnRoot(cc, comTab);
+	}
 	//remove off-diagonal NNZ on ghost rows.
 	if (cc.size() > 1)
 	    if (gro)
@@ -352,7 +378,10 @@ void readMatOnRootAndDist(std::string systemDir, Mat& A_loc, Vec& rhs_loc, D& DR
 		A_loc = A_loc_;
 	else
 	    A_loc = A_loc_;
-	printNumCells(cc, A_loc.nonzeroes(), 2);
+	if (!usePartVec)
+	    printNumCells(cc, A_loc.nonzeroes(), 2);
+	else
+	    if (rank == 0) {std::cout << std::endl;}
     }
 
     else {
@@ -382,4 +411,5 @@ void readMatOnRootAndDist(std::string systemDir, Mat& A_loc, Vec& rhs_loc, D& DR
 	bool ret = Dune::buildCommunication(g, setPartition, comm, parComm, redistInf.getInterface(), 0);
 	parComm->remoteIndices().template rebuild<false>();
     }
+    return mpivec;
 }

@@ -48,19 +48,18 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
     DictRead DR;
     Comm comm(cc);
     std::shared_ptr<Comm> parComm(new(Comm));
+    std::vector<int> mpiVec;
     for (int i = 0; i < systemDirs.size(); ++i) {
-        Mat A_loc;
-        Vec rhs_loc;
-        readMatOnRootAndDist(systemDirs[i], A_loc, rhs_loc, DR, comm, parComm, cc);
+	Mat A_loc;
+	Vec rhs_loc;
+	mpiVec = readMatOnRootAndDist(systemDirs[i], A_loc, rhs_loc, DR, comm, parComm, cc, mpiVec, true, i!=0);
 
         systems.push_back(A_loc);
         rhs.push_back(rhs_loc);
         sps.push_back(ScalarProduct(*parComm));
     }
 
-    for (int i = 0; i < systemDirs.size(); ++i) {
-    	std::cout << systems[i].N() << std::endl;
-    }
+    if (rank == 0) {std::cout << std::endl;}
 
     Opm::FlowLinearSolverParameters flsp_json;
     flsp_json.linsolver_ = DR.dict[12];
