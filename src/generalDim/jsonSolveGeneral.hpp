@@ -91,8 +91,8 @@ void gen_dim_jsonSolve(int argc, char** argv)
     //fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
 
     // Initialise the list of parameters with initial, min and max values
-    int num_cpr_parameters = 3;
-    int num_amg_parameters = 13;
+    int num_cpr_parameters = 4;
+    int num_amg_parameters = 12;
     int num_parameters;
     if (pc_Type == "cpr") {
         num_parameters = num_cpr_parameters + num_amg_parameters;
@@ -257,13 +257,13 @@ void gen_dim_jsonSolve(int argc, char** argv)
             "0.1",
             "double"
         },
-        {
+        /*{
             "preconditioner.skip_isolated", //strongly connected to beta
             "1",
             "0",
             "1",
             "bool"
-        },
+        },*/
         {
             "preconditioner.prolongationdamping",
             "1.6",
