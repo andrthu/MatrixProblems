@@ -37,6 +37,8 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
     typedef Opm::ParallelOverlappingILU0<Mat,Vec,Vec,Comm> ILU;
     typedef Dune::FlexibleSolver<Mat, Vec> FlexibleSolverType;
 
+    const auto block_size = Vec::block_type::dimension;
+    
     CollectiveCommunication cc(MPI_COMM_WORLD);
     int rank = cc.rank();
 
@@ -73,7 +75,9 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
     prm_json.put("verbosity", 2);
     
     int pidx = 1;
-
+    if (block_size == 2)
+	pidx = 0;
+    
     for (int i = 0; i < systemDirs.size(); ++i) {
 
 	
