@@ -210,7 +210,7 @@ void gen_dim_jsonSolve(int argc, char** argv)
             "preconditioner.coarsesolver.preconditioner.gamma",
             "1",
             "1",
-            "3",
+            "2",
             "int"
         }
     };
@@ -303,7 +303,7 @@ void gen_dim_jsonSolve(int argc, char** argv)
             "preconditioner.gamma",
             "1",
             "1",
-            "3",
+            "2",
             "int"
         }
     };

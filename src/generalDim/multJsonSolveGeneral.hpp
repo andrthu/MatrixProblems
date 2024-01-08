@@ -195,7 +195,7 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
             "preconditioner.coarsesolver.preconditioner.gamma",
             "1",
             "1",
-            "3",
+            "2",
             "int"
         }
     };
@@ -288,7 +288,7 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
             "preconditioner.gamma",
             "1",
             "1",
-            "3",
+            "2",
             "int"
         }
     };
@@ -328,8 +328,6 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
                 prm_json.put(preconditioner_parameters[j][0], preconditioner_parameters[j][1]);
             }
             try {
-                new_times_list[0] = 0;
-                new_iterations_list[0] = 0;
                 double temp_time = std::numeric_limits<double>::infinity();
                 double temp_iterations = std::numeric_limits<double>::infinity();
                 for (int sysNum = 0; sysNum < systemDirs.size(); ++sysNum) {
@@ -357,12 +355,11 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
                             temp_iterations = stat.iterations;
                         }
                     }
-                    new_times_list[0] += temp_time;
-                    new_iterations_list[0] += temp_iterations;
+                    times[0] += temp_time;
+                    iterations[0] += temp_iterations;
                 }
             } catch(...) {
-                new_times_list[0] = std::numeric_limits<double>::infinity();
-                new_iterations_list[0] = std::numeric_limits<double>::infinity();
+                std::cout << "Couldn't solve the linear system with default parameters." << std::endl;
             }
             if (rank == 0) {
                 std::cout << "Initial parameters: (" << times[0] << ", " << iterations[0] << ")\n" << std::endl;
