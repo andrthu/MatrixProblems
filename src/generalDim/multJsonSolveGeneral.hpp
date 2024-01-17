@@ -51,23 +51,24 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
     Comm comm(cc);
     std::shared_ptr<Comm> parComm(new(Comm));
     std::vector<int> mpiVec;
-    for (int i = 0; i < systemDirs.size(); ++i) {
-	
-	if ( boost::algorithm::ends_with( systemDirs[i], ".json") ) {
-	    DR.dict[12] = systemDirs[i];
-	}
-	else {
-	    Mat A_loc;
-	    Vec rhs_loc;
-	    mpiVec = readMatOnRootAndDist(systemDirs[i], A_loc, rhs_loc, DR, comm, parComm, cc, mpiVec, true, i!=0);
+    for (int i = 0; i < systemDirs.size(); ++i) {	
+        if ( boost::algorithm::ends_with( systemDirs[i], ".json") ) {
+            DR.dict[12] = systemDirs[i];
+        }
+        else {
+            Mat A_loc;
+            Vec rhs_loc;
+            mpiVec = readMatOnRootAndDist(systemDirs[i], A_loc, rhs_loc, DR, comm, parComm, cc, mpiVec, true, i!=0);
 
-            systems.push_back(A_loc);
-            rhs.push_back(rhs_loc);
-            sps.push_back(ScalarProduct(*parComm));
-	}
+                systems.push_back(A_loc);
+                rhs.push_back(rhs_loc);
+                sps.push_back(ScalarProduct(*parComm));
+        }
     }
 
-    if (rank == 0) {std::cout << std::endl;}
+    if (rank == 0) {
+        std::cout << std::endl;
+    }
 
     Opm::FlowLinearSolverParameters flsp_json;
     flsp_json.linsolver_ = DR.dict[12];
@@ -79,16 +80,20 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
     }
     prm_json.put("preconditioner.verbosity", 10);
     prm_json.put("verbosity", 2);
+    if (pc_Type == "cpr") {
+        prm_json.put("preconditioner.coarsesolver.preconditioner.maxlevel", 15);
+        prm_json.put("preconditioner.coarsesolver.maxiter", 1);
+    } else if (pc_Type == "amg") {
+        prm_json.put("preconditioner.maxlevel", 15);
+    }
+    prm_json.put("maxiter", 30);
     
     int pidx = 1;
-    if (block_size == 2)
-	pidx = 0;
+    if (block_size == 2) {
+    	pidx = 0;
+    }
 	
 	std::function<Vec()> quasi;
-	auto Ai = systems[i];
-	quasi = [Ai, pidx]() {
-	    return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(Ai, pidx, false);
-	};
     Dune::InverseOperatorResult stat;
 
     // Initialise the list of parameters with initial, min and max values
@@ -326,14 +331,18 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
     int num_time_measurement = 3;
     int num_iterations = 30;
     int num_perturbations = 5;
-    double times[num_iterations+1];
+    double times[num_iterations+1][2];
     double iterations[num_iterations+1];
     double new_parameter_values_list[num_perturbations+1][num_parameters];
-    double new_times_list[num_perturbations+1];
+    double new_times_list[num_perturbations+1][2];
     double new_iterations_list[num_parameters+1];
     
     // Set seed for random number generator (do we need this?)
     std::srand(std::time(0));
+
+    // Initialise variables needed to get info about update time (i.e. updating preconditioner before new time step)
+    std::ostringstream oss;
+    size_t pos = 0;
 
     // Start main loop over number of iterations (plus one, since we need the initial run)
     for (int i = 0; i < num_iterations + 1; i++) {
@@ -343,16 +352,30 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
             for (int j = 0; j < num_parameters; j++) {
                 prm_json.put(preconditioner_parameters[j][0], preconditioner_parameters[j][1]);
             }
+
+            if (rank == 0) {
+                std::cout << "\nSolving with initial (default) parameters:" << std::endl;
+            }
+
+            for (int j = 0; j < num_parameters; j++) {
+                if (rank == 0) {
+                    std::cout << preconditioner_parameters[j][0] << ": " << prm_json.get<std::string>(preconditioner_parameters[j][0]) << std::endl;
+                }
+            }
+
             try {
-                double temp_time = std::numeric_limits<double>::infinity();
-                double temp_iterations = std::numeric_limits<double>::infinity();
-                for (int sysNum = 0; sysNum < systemDirs.size(); ++sysNum) {
-                    std::function<Vec()> quasi;
+                times[0][0] = 0;
+                times[0][1] = 0;
+                iterations[0] = 0;
+                for (int sysNum = 0; sysNum < systems.size(); ++sysNum) {
+                    double single_time = std::numeric_limits<double>::infinity();
+                    double single_update_time = std::numeric_limits<double>::infinity();
+                    double single_iterations = std::numeric_limits<double>::infinity();
+                    
                     auto Ai = systems[sysNum];
                     quasi = [Ai, pidx]() {
                         return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(Ai, pidx, false);
                     };
-
                     GLO glo(Ai, *parComm);
                     auto fs_json = std::make_unique<FlexibleSolverType>(glo, *parComm, prm_json, quasi, pidx);
 
@@ -361,24 +384,46 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
                         Vec x(crhs.size());
                         x = 0;
                         fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
-                        if (stat.elapsed < temp_time) {
-                            if (stat.iterations == 200) {
-                                temp_time = std::numeric_limits<double>::infinity();
-                                temp_iterations = std::numeric_limits<double>::infinity();
+                        double temp_time = stat.elapsed;
+                        double temp_update_time;
+
+                        auto cout_buff = std::cout.rdbuf(oss.rdbuf());
+                        fs_json->preconditioner().update();
+                        if (rank == 0) {
+                            std::cout.rdbuf(cout_buff);
+                            std::string output = oss.str();
+                            pos = output.find("levels ");
+                            output.erase(0, pos + 7);
+                            pos = output.find(" seconds");
+                            output.erase(pos, 9);
+                            temp_time += stod(output);
+                            temp_update_time = stod(output);
+                            std::cout << "Update time for preconditioner was: " << output << std::endl;
+                            oss.str("");
+                            oss.clear();
+                        }
+
+                        if (temp_time < single_time) {
+                            if (stat.iterations == prm_json.get<int>("maxiter")) {
+                                single_time = std::numeric_limits<double>::infinity();
+                                single_update_time = std::numeric_limits<double>::infinity();
+                                single_iterations = std::numeric_limits<double>::infinity();
                                 break;
                             }
-                            temp_time = stat.elapsed;
-                            temp_iterations = stat.iterations;
+                            single_time = temp_time;
+                            single_update_time = temp_update_time;
+                            single_iterations = stat.iterations;
                         }
                     }
-                    times[0] += temp_time;
-                    iterations[0] += temp_iterations;
+                    times[0][0] += single_time;
+                    times[0][1] += single_update_time;
+                    iterations[0] += single_iterations;
                 }
             } catch(...) {
                 std::cout << "Couldn't solve the linear system with default parameters." << std::endl;
             }
             if (rank == 0) {
-                std::cout << "Initial parameters: (" << times[0] << ", " << iterations[0] << ")\n" << std::endl;
+                std::cout << "Initial parameters: (" << times[0][0] << ", " << iterations[0] << ")\n" << std::endl;
             }
             continue;
         }
@@ -404,7 +449,7 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
                 double new_value = prm_json.get<double>(preconditioner_parameters[j][0]);
 
                 // Only change some of the parameter values
-                if ((double)std::rand() / RAND_MAX > 0.8) {
+                if ((double)std::rand() / RAND_MAX < 0.6) {
                     double min_value = stod(preconditioner_parameters[j][2]);
                     double max_value = stod(preconditioner_parameters[j][3]);
                     if (preconditioner_parameters[j][4] == "bool") {
@@ -461,17 +506,23 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
             
             // Solve the system using the perturbed parameter values
             try {
-                new_times_list[p] = 0;
+                new_times_list[p][0] = 0;
+                new_times_list[p][1] = 0;
                 new_iterations_list[p] = 0;
-                double temp_time = std::numeric_limits<double>::infinity();
-                double temp_iterations = std::numeric_limits<double>::infinity();
-                for (int sysNum = 0; sysNum < systemDirs.size(); ++sysNum) {
-                    std::function<Vec()> quasi;
+                bool not_converged = false;
+                for (int sysNum = 0; sysNum < systems.size(); ++sysNum) {
+                    double single_time = std::numeric_limits<double>::infinity();
+                    double single_update_time = std::numeric_limits<double>::infinity();
+                    double single_iterations = std::numeric_limits<double>::infinity();
+
+                    if (not_converged) {
+                        break;
+                    }
+
                     auto Ai = systems[sysNum];
                     quasi = [Ai, pidx]() {
                         return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(Ai, pidx, false);
                     };
-
                     GLO glo(Ai, *parComm);
                     auto fs_json = std::make_unique<FlexibleSolverType>(glo, *parComm, prm_json, quasi, pidx);
 
@@ -480,26 +531,50 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
                         Vec x(crhs.size());
                         x = 0;
                         fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
-                        if (stat.elapsed < temp_time) {
-                            if (stat.iterations == 200) {
-                                temp_time = std::numeric_limits<double>::infinity();
-                                temp_iterations = std::numeric_limits<double>::infinity();
+                        double temp_time = stat.elapsed;
+                        double temp_update_time;
+
+                        auto cout_buff = std::cout.rdbuf(oss.rdbuf());
+                        fs_json->preconditioner().update();
+                        if (rank == 0) {
+                            std::cout.rdbuf(cout_buff);
+                            std::string output = oss.str();
+                            pos = output.find("levels ");
+                            output.erase(0, pos + 7);
+                            pos = output.find(" seconds");
+                            output.erase(pos, 9);
+                            temp_time += stod(output);
+                            temp_update_time = stod(output);
+                            std::cout << "Update time for preconditioner was: " << output << std::endl;
+                            oss.str("");
+                            oss.clear();
+                        }
+
+                        if (temp_time < single_time) {
+                            if (stat.iterations == prm_json.get<int>("maxiter")) {
+                                single_time = std::numeric_limits<double>::infinity();
+                                single_update_time = std::numeric_limits<double>::infinity();
+                                single_iterations = std::numeric_limits<double>::infinity();
+                                not_converged = true;
                                 break;
                             }
-                            temp_time = stat.elapsed;
-                            temp_iterations = stat.iterations;
+                            single_time = temp_time;
+                            single_update_time = temp_update_time;
+                            single_iterations = stat.iterations;
                         }
                     }
-                    new_times_list[p] += temp_time;
-                    new_iterations_list[p] += temp_iterations;
+                    new_times_list[p][0] += single_time;
+                    new_times_list[p][1] += single_update_time;
+                    new_iterations_list[p] += single_iterations;
                 }
             } catch(...) {
-                new_times_list[p] = std::numeric_limits<double>::infinity();
+                new_times_list[p][0] = std::numeric_limits<double>::infinity();
+                new_times_list[p][1] = std::numeric_limits<double>::infinity();
                 new_iterations_list[p] = std::numeric_limits<double>::infinity();
             }
             // Print out time and iteration count for perturbed parameter values
             if (rank == 0) {
-                std::cout << "\t(" << new_times_list[p] << ", " << new_iterations_list[p] << ")\n" << std::endl;
+                std::cout << "\t(" << new_times_list[p][0] << ", " << new_iterations_list[p] << ")\n" << std::endl;
             }
         }
 
@@ -525,18 +600,18 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
             int num_completed_computations = 0;
             
             for (int p = 0; p < num_perturbations; p++) {
-                if (std::isinf(new_times_list[p])) {
+                if (std::isinf(new_times_list[p][0])) {
                     continue;
                 }
                 num_completed_computations++;
-                array[j] += (times[i-1] - new_times_list[p]) * (new_parameter_values_list[p][j] - old_value);
+                array[j] += (times[i-1][0] - new_times_list[p][0]) * (new_parameter_values_list[p][j] - old_value);
             }
-            //new_gradient_value = old_value + array[j] / (times[i-1] * num_completed_computations);
+            //new_gradient_value = old_value + array[j] / (times[i-1][0] * num_completed_computations);
             if (old_value == 0) {
-                new_gradient_value = array[j] / (times[i-1] * num_completed_computations);
+                new_gradient_value = array[j] / (times[i-1][0] * num_completed_computations);
             }
             else {
-                new_gradient_value = old_value + array[j] / (old_value * times[i-1] * num_completed_computations);
+                new_gradient_value = old_value + array[j] / (old_value * times[i-1][0] * num_completed_computations);
             }
             if (new_gradient_value < min_value) {
                 new_gradient_value = min_value;
@@ -590,17 +665,23 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
 
         // Solve the system using the gradient values
         try {
-            new_times_list[num_perturbations] = 0;
+            new_times_list[num_perturbations][0] = 0;
+            new_times_list[num_perturbations][1] = 0;
             new_iterations_list[num_perturbations] = 0;
-            double temp_time = std::numeric_limits<double>::infinity();
-            double temp_iterations = std::numeric_limits<double>::infinity();
-            for (int sysNum = 0; sysNum < systemDirs.size(); ++sysNum) {
-                std::function<Vec()> quasi;
+            bool not_converged = false;
+            for (int sysNum = 0; sysNum < systems.size(); ++sysNum) {
+                double single_time = std::numeric_limits<double>::infinity();
+                double single_update_time = std::numeric_limits<double>::infinity();
+                double single_iterations = std::numeric_limits<double>::infinity();
+
+                if (not_converged) {
+                    break;
+                }
+
                 auto Ai = systems[sysNum];
                 quasi = [Ai, pidx]() {
                     return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(Ai, pidx, false);
                 };
-
                 GLO glo(Ai, *parComm);
                 auto fs_json = std::make_unique<FlexibleSolverType>(glo, *parComm, prm_json, quasi, pidx);
 
@@ -609,34 +690,58 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
                     Vec x(crhs.size());
                     x = 0;
                     fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
-                    if (stat.elapsed < temp_time) {
-                        if (stat.iterations == 200) {
-                            temp_time = std::numeric_limits<double>::infinity();
-                            temp_iterations = std::numeric_limits<double>::infinity();
+                    double temp_time = stat.elapsed;
+                    double temp_update_time;
+
+                    auto cout_buff = std::cout.rdbuf(oss.rdbuf());
+                    fs_json->preconditioner().update();
+                    if (rank == 0) {
+                        std::cout.rdbuf(cout_buff);
+                        std::string output = oss.str();
+                        pos = output.find("levels ");
+                        output.erase(0, pos + 7);
+                        pos = output.find(" seconds");
+                        output.erase(pos, 9);
+                        temp_time += stod(output);
+                        temp_update_time = stod(output);
+                        std::cout << "Update time for preconditioner was: " << output << std::endl;
+                        oss.str("");
+                        oss.clear();
+                    }
+
+                    if (temp_time < single_time) {
+                        if (stat.iterations == prm_json.get<int>("maxiter")) {
+                            single_time = std::numeric_limits<double>::infinity();
+                            single_update_time = std::numeric_limits<double>::infinity();
+                            single_iterations = std::numeric_limits<double>::infinity();
+                            not_converged = true;
                             break;
                         }
+                        single_time = temp_time;
+                        single_update_time = temp_update_time;
+                        single_iterations = stat.iterations;
                     }
-                    temp_time = stat.elapsed;
-                    temp_iterations = stat.iterations;
                 }
-                new_times_list[num_perturbations] += temp_time;
-                new_iterations_list[num_perturbations] += temp_iterations;
+                new_times_list[num_perturbations][0] += single_time;
+                new_times_list[num_perturbations][1] += single_update_time;
+                new_iterations_list[num_perturbations] += single_iterations;
             }
         } catch(...) {
-            new_times_list[num_perturbations] = std::numeric_limits<double>::infinity();
+            new_times_list[num_perturbations][0] = std::numeric_limits<double>::infinity();
+            new_times_list[num_perturbations][1] = std::numeric_limits<double>::infinity();
             new_iterations_list[num_perturbations] = std::numeric_limits<double>::infinity();
         }
 
         // Print out time and iteration count for gradient parameter values
         if (rank == 0) {
-            std::cout << "\t(" << new_times_list[num_perturbations] << ", " << new_iterations_list[num_perturbations] << ")\n" << std::endl;
+            std::cout << "\t(" << new_times_list[num_perturbations][0] << ", " << new_iterations_list[num_perturbations] << ")\n" << std::endl;
         }
 
         // Find the fastest parameter values (from perturbed plus gradient)
         int min_index = 0;
         bool is_gradient_lowest = false;
         for (int indx = 1; indx < num_perturbations + 1; indx++) {
-            if (new_times_list[indx] < new_times_list[min_index]) {
+            if (new_times_list[indx][0] < new_times_list[min_index][0]) {
                 min_index = indx;
             }
         }
@@ -646,12 +751,15 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
 
         // Compare the fastest parameter values with the current best and update
         // current best if the new one is faster
-        if (new_times_list[min_index] < times[i-1]) {
-            times[i] = new_times_list[min_index];
+        if (new_times_list[min_index][0] < times[i-1][0]) {
+            times[i][0] = new_times_list[min_index][0];
+            times[i][1] = new_times_list[min_index][1];
             iterations[i] = new_iterations_list[min_index];
             if (rank == 0) {
                 std::cout << "Found a better parameter set!" << std::endl;
-                std::cout << "Time reduced from " << times[i-1] << " to " << times[i] << std::endl;
+                std::cout << "Time reduced from " << times[i-1][0] << " to " << times[i][0] << std::endl;
+                std::cout << "Solver time changed from " << times[i-1][0] - times[i-1][1] << " to " << times[i][0] - times[i][1] << std::endl;
+                std::cout << "Update time changed from " << times[i-1][1] << " to " << times[i][1] << std::endl;
                 if (is_gradient_lowest) {
                     std::cout << "Gradient update" << std::endl;
                 }
@@ -667,7 +775,8 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
             }
         }
         else {
-            times[i] = times[i-1];
+            times[i][0] = times[i-1][0];
+            times[i][1] = times[i-1][1];
             iterations[i] = iterations[i-1];
         }
     }
@@ -676,8 +785,8 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
     // and the final best parameter values
     if (rank == 0) {
         std::cout << "\n(Times, iterations):" << std::endl;
-        for (int i = 0; i < sizeof(times)/sizeof(times[0]); i++) {
-            std::cout << "(" << times[i] << ", " << iterations[i] << ")" << std::endl;
+        for (int i = 0; i < sizeof(times)/sizeof(times[0][0]); i++) {
+            std::cout << "(" << times[i][0] << ", " << iterations[i] << ")" << std::endl;
         }
         std::cout << "\nParameter values:" << std::endl;
         for (int i = 0; i < num_parameters; i++) {
