@@ -79,6 +79,40 @@ add_executable("multJsonSolveCO2"
   partition/flexibleSolverTimer.hpp
   generalDim/multJsonSolveGeneral.hpp)
 
+add_executable("singleHierarchyMultJsonSolve" 
+  singleHierarchyMultJsonSolve.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/singleHierarchymultJsonSolveGeneral.hpp)
+
+add_executable("singleHierarchyMultJsonSolveCO2" 
+  singleHierarchyMultJsonSolveCO2.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/singleHierarchymultJsonSolveGeneral.hpp)
+
 add_executable("amgCprTest"
   amgCprTest.cpp
   io/inputRead.hpp
@@ -159,6 +193,8 @@ set(opm_dep
   jsonSolveCO2
   multJsonSolve
   multJsonSolveCO2
+  singleHierarchyMultJsonSolve
+  singleHierarchyMultJsonSolveCO2
   amgCprTest
   amgCprCo2Test
   twoLevelMethodTest
