@@ -53,19 +53,18 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
     std::shared_ptr<Comm> parComm(new(Comm));
     std::vector<int> mpiVec;
     for (int i = 0; i < systemDirs.size(); ++i) {
-	
-	if ( boost::algorithm::ends_with( systemDirs[i], ".json") ) {
-	    DR.dict[12] = systemDirs[i];
-	}
-	else {
-	    Mat A_loc;
-	    Vec rhs_loc;
-	    mpiVec = readMatOnRootAndDist(systemDirs[i], A_loc, rhs_loc, DR, comm, parComm, cc, mpiVec, true, i!=0);
+        if ( boost::algorithm::ends_with( systemDirs[i], ".json") ) {
+            DR.dict[12] = systemDirs[i];
+        }
+        else {
+            Mat A_loc;
+            Vec rhs_loc;
+            mpiVec = readMatOnRootAndDist(systemDirs[i], A_loc, rhs_loc, DR, comm, parComm, cc, mpiVec, true, i!=0);
 
-	    systems.push_back(A_loc);
-	    rhs.push_back(rhs_loc);
-	    sps.push_back(ScalarProduct(*parComm));
-	}
+            systems.push_back(A_loc);
+            rhs.push_back(rhs_loc);
+            sps.push_back(ScalarProduct(*parComm));
+        }
     }
 
     if (rank == 0) {std::cout << std::endl;}
@@ -91,7 +90,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 	Dune::InverseOperatorResult stat;
 	
     // Initialise the list of parameters with initial, min and max values
-    int num_cpr_parameters = 4;
+    int num_cpr_parameters = 4; // REMEMBER to change this when adding or removing parameters!
     int num_amg_parameters = 12;
     int num_parameters;
     if (pc_Type == "cpr") {
@@ -212,7 +211,14 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
             "1",
             "2",
             "int"
-        }
+        }/*,
+        {
+            "preconditioner.coarsesolver.preconditioner.smoother",
+            "0",
+            "0",
+            "3",
+            "int"
+        }*/
     };
     std::string amg_parameters[][5] = {
         {
@@ -308,6 +314,13 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
         }
     };
 
+    std::string smoothers[4] = {
+        "Jac",
+        "GS",
+        "SOR",
+        "SSOR"
+    };
+
     std::string preconditioner_parameters[num_parameters][5];
     int counter = 0;
     while (counter < num_parameters) {
@@ -321,15 +334,18 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
         counter++;
     }
 
+    int sysNum = systems.size();
+
     // Initialise other necessary variables and arrays
     int num_time_measurement = 3;
     int num_iterations = 30;
     int num_perturbations = 5;
-    double times[num_iterations+1][2];
+    double times[num_iterations+1][sysNum][2];
     double iterations[num_iterations+1];
     double new_parameter_values_list[num_perturbations+1][num_parameters];
-    double new_times_list[num_perturbations+1][2];
+    double new_times_list[num_perturbations+1][sysNum][2];
     double new_iterations_list[num_parameters+1];
+    double total_best_relative_improvement = 0;
     
     // Set seed for random number generator (do we need this?)
     std::srand(std::time(0));
@@ -344,6 +360,10 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
         // First iterations is just used to solve using the initial parameter values
         if (i == 0) {
             for (int j = 0; j < num_parameters; j++) {
+                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother") {
+                    prm_json.put(preconditioner_parameters[j][0], smoothers[std::stoi(preconditioner_parameters[j][1])]);
+                    continue;
+                }
                 prm_json.put(preconditioner_parameters[j][0], preconditioner_parameters[j][1]);
             }
 
@@ -358,10 +378,6 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
             }
 
             try {
-                times[0][0] = 0;
-                times[0][1] = 0;
-                iterations[0] = 0;
-
                 Mat* matrix = &systems[0];
                 auto glo = std::make_unique<GLO>(*matrix, *parComm);
 
@@ -373,26 +389,33 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                     return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(*matrix, pidx, false);
                 };
 
+                if (rank == 0)
+                    std::cout << "\nBEFORE BUILDING PRECONDITIONER\n" << std::endl;
+
                 //Create linear solver. AMG hierarchy is set-up here based on the systems[0] matrix 
                 auto fs_json = std::make_unique<FlexibleSolverType>(*glo, *parComm, prm_json, quasi, pidx);
 
-                for (int sysNum = 0; sysNum < systems.size(); ++sysNum) {
+                if (rank == 0)
+                    std::cout << "\nAFTER BUILDING PRECONDITIONER\n" << std::endl;
+
+                iterations[0] = 0;
+
+                for (int sys = 0; sys < sysNum; ++sys) {
 
                     if (rank == 0) {
-                        std::cout << "\nSolving linear system number: " << sysNum << std::endl;
+                        std::cout << "\n\tSolving linear system number: " << sys << std::endl;
                     }
 
-                    double single_time = std::numeric_limits<double>::infinity();
-                    double single_update_time = std::numeric_limits<double>::infinity();
-                    double single_iterations = std::numeric_limits<double>::infinity();
+                    times[0][sys][0] = std::numeric_limits<double>::infinity();
+                    times[0][sys][1] = std::numeric_limits<double>::infinity();
 
-                    matrix = &systems[sysNum];
+                    matrix = &systems[sys];
                     
                     for (int k = 0; k < num_time_measurement; k++) {
                         double temp_time = 0;
                         double temp_update_time;
                         
-                        Vec crhs(rhs[sysNum]);
+                        Vec crhs(rhs[sys]);
                         Vec x(crhs.size());
                         x = 0;
 
@@ -415,27 +438,30 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                         fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
                         temp_time += stat.elapsed;
 
-                        if (temp_time < single_time) {
+                        if (temp_time < times[0][sys][0]) {
                             if (stat.iterations == prm_json.get<int>("maxiter")) {
-                                single_time = std::numeric_limits<double>::infinity();
-                                single_update_time = std::numeric_limits<double>::infinity();
-                                single_iterations = std::numeric_limits<double>::infinity();
+                                times[0][sys][0] = std::numeric_limits<double>::infinity();
+                                times[0][sys][1] = std::numeric_limits<double>::infinity();
+                                iterations[0] = std::numeric_limits<double>::infinity();
                                 break;
                             }
-                            single_time = temp_time;
-                            single_update_time = temp_update_time;
-                            single_iterations = stat.iterations;
+                            times[0][sys][0] = temp_time;
+                            times[0][sys][1] = temp_update_time;
+                            if (k == 0) {
+                                iterations[0] += stat.iterations;
+                            }
                         }
                     }
-                    times[0][0] += single_time;
-                    times[0][1] += single_update_time;
-                    iterations[0] += single_iterations;
                 }
             } catch(...) {
                 std::cout << "Couldn't solve the linear system with default parameters." << std::endl;
             }
             if (rank == 0) {
-                std::cout << "Initial parameters: (" << times[0][0] << ", " << iterations[0] << ")\n" << std::endl;
+                std::cout << "\nInitial times: " << times[0][0][0];
+                for (int sys = 1; sys < sysNum; sys++) {
+                    std::cout << ", " << times[0][sys][0];
+                }
+                std::cout << "\nInitial iteration count: " << iterations[0] << std::endl;
             }
             continue;
         }
@@ -453,6 +479,10 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
             // Reset preconditioner to current best before perturbing values
             for (int j = 0; j < num_parameters; j++) {
+                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother") {
+                    prm_json.put(preconditioner_parameters[j][0], smoothers[std::stoi(preconditioner_parameters[j][1])]);
+                    continue;
+                }
                 prm_json.put(preconditioner_parameters[j][0], preconditioner_parameters[j][1]);
             }
 
@@ -506,6 +536,10 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                     }
                 }
                 
+                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother") {
+                    prm_json.put(preconditioner_parameters[p][j], smoothers[int(new_value)]);
+                    continue;
+                }
                 prm_json.put(preconditioner_parameters[j][0], new_value);
                 new_parameter_values_list[p][j] = new_value;
             }
@@ -518,11 +552,6 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
             
             // Solve the system using the perturbed parameter values
             try {
-                new_times_list[p][0] = 0;
-                new_times_list[p][1] = 0;
-                new_iterations_list[p] = 0;
-                bool not_converged = false;
-
                 Mat* matrix = &systems[0];
                 auto glo = std::make_unique<GLO>(*matrix, *parComm);
 
@@ -537,27 +566,29 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                 //Create linear solver. AMG hierarchy is set-up here based on the systems[0] matrix 
                 auto fs_json = std::make_unique<FlexibleSolverType>(*glo, *parComm, prm_json, quasi, pidx);
 
-                for (int sysNum = 0; sysNum < systems.size(); ++sysNum) {
+                new_iterations_list[p] = 0;
+                bool not_converged = false;
+
+                for (int sys = 0; sys < sysNum; ++sys) {
 
                     if (not_converged) {
                         break;
                     }
 
                     if (rank == 0) {
-                        std::cout << "\nSolving linear system number: " << sysNum << std::endl;
+                        std::cout << "\n\tSolving linear system number: " << sys << std::endl;
                     }
 
-                    double single_time = std::numeric_limits<double>::infinity();
-                    double single_update_time = std::numeric_limits<double>::infinity();
-                    double single_iterations = std::numeric_limits<double>::infinity();
+                    new_times_list[p][sys][0] = std::numeric_limits<double>::infinity();
+                    new_times_list[p][sys][1] = std::numeric_limits<double>::infinity();
 
-                    matrix = &systems[sysNum];
+                    matrix = &systems[sys];
 
                     for (int k = 0; k < num_time_measurement; k++) {
                         double temp_time = 0;
                         double temp_update_time;
 
-                        Vec crhs(rhs[sysNum]);
+                        Vec crhs(rhs[sys]);
                         Vec x(crhs.size());
                         x = 0;
 
@@ -580,31 +611,36 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                         fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
                         temp_time += stat.elapsed;
 
-                        if (temp_time < single_time) {
+                        if (temp_time < new_times_list[p][sys][0]) {
                             if (stat.iterations == prm_json.get<int>("maxiter")) {
-                                single_time = std::numeric_limits<double>::infinity();
-                                single_update_time = std::numeric_limits<double>::infinity();
-                                single_iterations = std::numeric_limits<double>::infinity();
+                                new_times_list[p][sys][0] = std::numeric_limits<double>::infinity();
+                                new_times_list[p][sys][1] = std::numeric_limits<double>::infinity();
+                                new_iterations_list[p] = std::numeric_limits<double>::infinity();
                                 not_converged = true;
                                 break;
                             }
-                            single_time = temp_time;
-                            single_update_time = temp_update_time;
-                            single_iterations = stat.iterations;
+                            new_times_list[p][sys][0] = temp_time;
+                            new_times_list[p][sys][1] = temp_update_time;
+                            if (k == 0) {
+                                new_iterations_list[p] += stat.iterations;
+                            }
                         }
                     }
-                    new_times_list[p][0] += single_time;
-                    new_times_list[p][1] += single_update_time;
-                    new_iterations_list[p] += single_iterations;
                 }
             } catch(...) {
-                new_times_list[p][0] = std::numeric_limits<double>::infinity();
-                new_times_list[p][1] = std::numeric_limits<double>::infinity();
+                for (int sys = 0; sys < sysNum; sys++) {
+                    new_times_list[p][sys][0] = std::numeric_limits<double>::infinity();
+                    new_times_list[p][sys][1] = std::numeric_limits<double>::infinity();
+                }
                 new_iterations_list[p] = std::numeric_limits<double>::infinity();
             }
             // Print out time and iteration count for perturbed parameter values
             if (rank == 0) {
-                std::cout << "\t(" << new_times_list[p][0] << ", " << new_iterations_list[p] << ")\n" << std::endl;
+                std::cout << "\nTimes: " << new_times_list[p][0][0];
+                for (int sys = 1; sys < sysNum; sys++) {
+                    std::cout << ", " << new_times_list[p][sys][0];
+                }
+                std::cout << "\nIteration count: " << new_iterations_list[p] << std::endl << std::endl;
             }
         }
 
@@ -615,6 +651,10 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
         // Reset preconditioner to current best before calculating gradient
         for (int j = 0; j < num_parameters; j++) {
+            if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother") {
+                prm_json.put(preconditioner_parameters[j][0], smoothers[std::stoi(preconditioner_parameters[j][1])]);
+                continue;
+            }
             prm_json.put(preconditioner_parameters[j][0], preconditioner_parameters[j][1]);
         }
 
@@ -630,19 +670,35 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
             int num_completed_computations = 0;
             
             for (int p = 0; p < num_perturbations; p++) {
-                if (std::isinf(new_times_list[p][0])) {
+                bool is_infinite = false;
+                for (int sys = 0; sys < sysNum; sys++) {
+                    if (std::isinf(new_times_list[p][sys][0])) {
+                        is_infinite = true;
+                        break;
+                    }
+                }
+                if (is_infinite) {
                     continue;
                 }
                 num_completed_computations++;
-                array[j] += (times[i-1][0] - new_times_list[p][0]) * (new_parameter_values_list[p][j] - old_value);
+                for (int sys = 0; sys < sysNum; sys++) {
+                    array[j] += (times[i-1][sys][0] - new_times_list[p][sys][0]) * (new_parameter_values_list[p][j] - old_value);
+                }
             }
-            //new_gradient_value = old_value + array[j] / (times[i-1][0] * num_completed_computations);
+
+            double total_time = 0;
+            for (int sys = 0; sys < sysNum; sys++) {
+                total_time += times[i-1][sys][0];
+            }
+
+            //new_gradient_value = old_value + array[j] / (total_time * num_completed_computations);
             if (old_value == 0) {
-                new_gradient_value = array[j] / (times[i-1][0] * num_completed_computations);
+                new_gradient_value = array[j] / (total_time * num_completed_computations);
             }
             else {
-                new_gradient_value = old_value + array[j] / (old_value * times[i-1][0] * num_completed_computations);
+                new_gradient_value = old_value + array[j] / (old_value * total_time * num_completed_computations);
             }
+
             if (new_gradient_value < min_value) {
                 new_gradient_value = min_value;
             }
@@ -664,6 +720,10 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                 }
             }
             new_parameter_values_list[num_perturbations][j] = new_gradient_value;
+            if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother") {
+                prm_json.put(preconditioner_parameters[j][0], smoothers[int(new_parameter_values_list[num_perturbations][j])]);
+                continue;
+            }
             prm_json.put(preconditioner_parameters[j][0], new_parameter_values_list[num_perturbations][j]);
         }
 
@@ -695,11 +755,6 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
         // Solve the system using the gradient values
         try {
-            new_times_list[num_perturbations][0] = 0;
-            new_times_list[num_perturbations][1] = 0;
-            new_iterations_list[num_perturbations] = 0;
-            bool not_converged = false;
-
             Mat* matrix = &systems[0];
             auto glo = std::make_unique<GLO>(*matrix, *parComm);
 
@@ -714,27 +769,29 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
             //Create linear solver. AMG hierarchy is set-up here based on the systems[0] matrix 
             auto fs_json = std::make_unique<FlexibleSolverType>(*glo, *parComm, prm_json, quasi, pidx);
 
-            for (int sysNum = 0; sysNum < systems.size(); ++sysNum) {
+            new_iterations_list[num_perturbations] = 0;
+            bool not_converged = false;
+
+            for (int sys = 0; sys < sysNum; ++sys) {
                 
                 if (not_converged) {
                     break;
                 }
                 
                 if (rank == 0) {
-                    std::cout << "\nSolving linear system number: " << sysNum << std::endl;
+                    std::cout << "\n\tSolving linear system number: " << sys << std::endl;
                 }
 
-                double single_time = std::numeric_limits<double>::infinity();
-                double single_update_time = std::numeric_limits<double>::infinity();
-                double single_iterations = std::numeric_limits<double>::infinity();
+                new_times_list[num_perturbations][sys][0] = std::numeric_limits<double>::infinity();
+                new_times_list[num_perturbations][sys][1] = std::numeric_limits<double>::infinity();
 
-                matrix = &systems[sysNum];
+                matrix = &systems[sys];
 
                 for (int k = 0; k < num_time_measurement; k++) {
                     double temp_time = 0;
                     double temp_update_time;
 
-                    Vec crhs(rhs[sysNum]);
+                    Vec crhs(rhs[sys]);
                     Vec x(crhs.size());
                     x = 0;
 
@@ -757,39 +814,59 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                     fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
                     temp_time += stat.elapsed;
 
-                    if (temp_time < single_time) {
+                    if (temp_time < new_times_list[num_perturbations][sys][0]) {
                         if (stat.iterations == prm_json.get<int>("maxiter")) {
-                            single_time = std::numeric_limits<double>::infinity();
-                            single_update_time = std::numeric_limits<double>::infinity();
-                            single_iterations = std::numeric_limits<double>::infinity();
+                            new_times_list[num_perturbations][sys][0] = std::numeric_limits<double>::infinity();
+                            new_times_list[num_perturbations][sys][1] = std::numeric_limits<double>::infinity();
+                            new_iterations_list[num_perturbations] = std::numeric_limits<double>::infinity();
                             not_converged = true;
                             break;
                         }
-                        single_time = temp_time;
-                        single_update_time = temp_update_time;
-                        single_iterations = stat.iterations;
+                        new_times_list[num_perturbations][sys][0] = temp_time;
+                        new_times_list[num_perturbations][sys][1] = temp_update_time;
+                        if (k == 0) {
+                            new_iterations_list[num_perturbations] = stat.iterations;
+                        }
                     }
                 }
-                new_times_list[num_perturbations][0] += single_time;
-                new_times_list[num_perturbations][1] += single_update_time;
-                new_iterations_list[num_perturbations] += single_iterations;
             }
         } catch(...) {
-            new_times_list[num_perturbations][0] = std::numeric_limits<double>::infinity();
-            new_times_list[num_perturbations][1] = std::numeric_limits<double>::infinity();
+            for (int sys = 0; sys < sysNum; sys++) {
+                new_times_list[num_perturbations][sys][0] = std::numeric_limits<double>::infinity();
+                new_times_list[num_perturbations][sys][1] = std::numeric_limits<double>::infinity();
+            }
             new_iterations_list[num_perturbations] = std::numeric_limits<double>::infinity();
         }
 
         // Print out time and iteration count for gradient parameter values
         if (rank == 0) {
-            std::cout << "\t(" << new_times_list[num_perturbations][0] << ", " << new_iterations_list[num_perturbations] << ")\n" << std::endl;
+            std::cout << "\nGradient times: " << new_times_list[num_perturbations][0][0];
+            for (int sys = 1; sys < sysNum; sys++) {
+                std::cout << ", " << new_times_list[num_perturbations][sys][0];
+            }
+            std::cout << "\nGradient iteration count: " << new_iterations_list[num_perturbations] << std::endl;
         }
 
         // Find the fastest parameter values (from perturbed plus gradient)
-        int min_index = 0;
+        double best_relative_improvement = 0;
+        int min_index;
         bool is_gradient_lowest = false;
         for (int indx = 1; indx < num_perturbations + 1; indx++) {
-            if (new_times_list[indx][0] < new_times_list[min_index][0]) {
+            bool is_infinite = false;
+            double relative_improvement = 0;
+            for (int sys = 0; sys < sysNum; sys++) {
+                if (std::isinf(new_times_list[indx][sys][0])) {
+                    is_infinite = true;
+                    break;
+                }
+                relative_improvement += (times[0][sys][0] - new_times_list[indx][sys][0]) / times[0][sys][0];
+            }
+            if (is_infinite) {
+                continue;
+            }
+            if (rank == 0) { std::cout << relative_improvement << std::endl; }
+            if (relative_improvement > best_relative_improvement) {
+                best_relative_improvement = relative_improvement;
                 min_index = indx;
             }
         }
@@ -799,15 +876,32 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
         // Compare the fastest parameter values with the current best and update
         // current best if the new one is faster
-        if (new_times_list[min_index][0] < times[i-1][0]) {
-            times[i][0] = new_times_list[min_index][0];
-            times[i][1] = new_times_list[min_index][1];
+        if (best_relative_improvement > total_best_relative_improvement) {
+            total_best_relative_improvement = best_relative_improvement;
+            for (int sys = 0; sys < sysNum; sys++) {
+                times[i][sys][0] = new_times_list[min_index][sys][0];
+                times[i][sys][1] = new_times_list[min_index][sys][1];                
+            }
             iterations[i] = new_iterations_list[min_index];
+
+            double total_time[] = { 0, 0 };
+            double total_solver_time[] = { 0, 0 };
+            double total_update_time[] = { 0, 0 };
+            for (int sys = 0; sys < sysNum; sys++) {
+                total_time[0] += times[i-1][sys][0];
+                total_time[1] += times[i][sys][0];
+                total_solver_time[0] += times[i-1][sys][0] - times[i-1][sys][1];
+                total_solver_time[1] += times[i][sys][0] - times[i][sys][1];
+                total_update_time[0] += times[i-1][sys][1];
+                total_update_time[1] += times[i][sys][1];
+            }
+
             if (rank == 0) {
-                std::cout << "Found a better parameter set!" << std::endl;
-                std::cout << "Time reduced from " << times[i-1][0] << " to " << times[i][0] << std::endl;
-                std::cout << "Solver time changed from " << times[i-1][0] - times[i-1][1] << " to " << times[i][0] - times[i][1] << std::endl;
-                std::cout << "Update time changed from " << times[i-1][1] << " to " << times[i][1] << std::endl;
+                std::cout << "\nFound a better parameter set!" << std::endl;
+                std::cout << "Time changed from " << total_time[0] << " to " << total_time[1] << std::endl;
+                std::cout << "Solver time changed from " << total_solver_time[0] << " to " << total_solver_time[1] << std::endl;
+                std::cout << "Update time changed from " << total_update_time[0] << " to " << total_update_time[1] << std::endl;
+                std::cout << "Iteration count changed from " << iterations[i-1] << " to " << iterations[i] << std::endl;
                 if (is_gradient_lowest) {
                     std::cout << "Gradient update" << std::endl;
                 }
@@ -823,8 +917,10 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
             }
         }
         else {
-            times[i][0] = times[i-1][0];
-            times[i][1] = times[i-1][1];
+            for (int sys = 0; sys < sysNum; sys++) {
+                times[i][sys][0] = times[i-1][sys][0];
+                times[i][sys][1] = times[i-1][sys][1];
+            }
             iterations[i] = iterations[i-1];
         }
     }
