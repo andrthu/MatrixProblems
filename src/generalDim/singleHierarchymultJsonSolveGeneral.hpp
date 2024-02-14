@@ -85,13 +85,18 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
     } else if (pc_Type == "amg") {
         prm_json.put("preconditioner.maxlevel", 15);
     }
-    prm_json.put("maxiter", 30);
+    if (pc_Type == "cpr") {
+        prm_json.put("maxiter", 30);
+    }
+    else if (pc_Type == "amg") {
+        prm_json.put("maxiter", 100);
+    }
     
 	Dune::InverseOperatorResult stat;
 	
     // Initialise the list of parameters with initial, min and max values
     int num_cpr_parameters = 4; // REMEMBER to change this when adding or removing parameters!
-    int num_amg_parameters = 12;
+    int num_amg_parameters = 13;
     int num_parameters;
     if (pc_Type == "cpr") {
         num_parameters = num_cpr_parameters + num_amg_parameters;
@@ -211,14 +216,14 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
             "1",
             "2",
             "int"
-        }/*,
+        },
         {
             "preconditioner.coarsesolver.preconditioner.smoother",
+            "0", // REMEMBER TO CHANGE THIS!!!
             "0",
-            "0",
-            "3",
+            "4",
             "int"
-        }*/
+        }
     };
     std::string amg_parameters[][5] = {
         {
@@ -311,10 +316,18 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
             "1",
             "2",
             "int"
+        },
+        {
+            "preconditioner.smoother",
+            "0", // REMEMBER TO CHANGE THIS!!!
+            "0",
+            "4",
+            "int"
         }
     };
 
-    std::string smoothers[4] = {
+    std::string smoothers[] = {
+        "ILU0",
         "Jac",
         "GS",
         "SOR",
@@ -334,9 +347,9 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
         counter++;
     }
 
-    int sysNum = systems.size();
-
     // Initialise other necessary variables and arrays
+    int sysNum = systems.size();
+    double max_time_limit = 3;
     int num_time_measurement = 3;
     int num_iterations = 30;
     int num_perturbations = 5;
@@ -348,19 +361,22 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
     double total_best_relative_improvement = 0;
     
     // Set seed for random number generator (do we need this?)
-    std::srand(std::time(0));
+    std::srand(std::time(NULL));
 
     // Initialise variables needed to get info about update time (i.e. updating preconditioner before new time step)
     std::ostringstream oss;
     size_t pos = 0;
 
+    std::chrono::steady_clock::time_point start_time_optim = std::chrono::steady_clock::now();
+
     // Start main loop over number of iterations (plus one, since we need the initial run)
     for (int i = 0; i < num_iterations + 1; i++) {
-        
+
         // First iterations is just used to solve using the initial parameter values
         if (i == 0) {
             for (int j = 0; j < num_parameters; j++) {
-                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother") {
+                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother" ||
+                    preconditioner_parameters[j][0] == "preconditioner.smoother") {
                     prm_json.put(preconditioner_parameters[j][0], smoothers[std::stoi(preconditioner_parameters[j][1])]);
                     continue;
                 }
@@ -389,21 +405,15 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                     return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(*matrix, pidx, false);
                 };
 
-                if (rank == 0)
-                    std::cout << "\nBEFORE BUILDING PRECONDITIONER\n" << std::endl;
-
                 //Create linear solver. AMG hierarchy is set-up here based on the systems[0] matrix 
                 auto fs_json = std::make_unique<FlexibleSolverType>(*glo, *parComm, prm_json, quasi, pidx);
-
-                if (rank == 0)
-                    std::cout << "\nAFTER BUILDING PRECONDITIONER\n" << std::endl;
 
                 iterations[0] = 0;
 
                 for (int sys = 0; sys < sysNum; ++sys) {
 
                     if (rank == 0) {
-                        std::cout << "\n\tSolving linear system number: " << sys << std::endl;
+                        std::cout << "\n\tSolving linear system number " << sys + 1 << " out of " << sysNum << " systems." << std::endl;
                     }
 
                     times[0][sys][0] = std::numeric_limits<double>::infinity();
@@ -479,7 +489,8 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
             // Reset preconditioner to current best before perturbing values
             for (int j = 0; j < num_parameters; j++) {
-                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother") {
+                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother" ||
+                    preconditioner_parameters[j][0] == "preconditioner.smoother") {
                     prm_json.put(preconditioner_parameters[j][0], smoothers[std::stoi(preconditioner_parameters[j][1])]);
                     continue;
                 }
@@ -488,12 +499,38 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
             // Perturb parameter values and ensure they fall within [min, max]
             for (int j = 0; j < num_parameters; j++) {
-                double new_value = prm_json.get<double>(preconditioner_parameters[j][0]);
+                double new_value = stod(preconditioner_parameters[j][1]);
 
                 // Only change some of the parameter values
                 if ((double)std::rand() / RAND_MAX < 0.6) {
                     double min_value = stod(preconditioner_parameters[j][2]);
                     double max_value = stod(preconditioner_parameters[j][3]);
+                    
+                    double amount_of_perturbation = std::max(0.3 * new_value, 3.0);
+                    double lower_bound = std::max(new_value - amount_of_perturbation, min_value);
+                    double upper_bound = std::min(new_value + amount_of_perturbation, max_value);
+
+                    if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.minaggsize" || preconditioner_parameters[j][0] == "preconditioner.minaggsize") {
+                        double temp_maxaggsize;
+                        if (pc_Type == "cpr") {
+                            temp_maxaggsize = prm_json.get<int>("preconditioner.coarsesolver.preconditioner.maxaggsize");
+                        } else if (pc_Type == "amg") {
+                            temp_maxaggsize = prm_json.get<int>("preconditioner.maxaggsize");
+                        }
+                        upper_bound = std::min(upper_bound, temp_maxaggsize);
+                    }
+                    if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.maxaggsize" || preconditioner_parameters[j][0] == "preconditioner.maxaggsize") {
+                        double temp_minaggsize;
+                        if (pc_Type == "cpr") {
+                            temp_minaggsize = prm_json.get<int>("preconditioner.coarsesolver.preconditioner.minaggsize");
+                        } else if (pc_Type == "amg") {
+                            temp_minaggsize = prm_json.get<int>("preconditioner.minaggsize");
+                        }
+                        lower_bound = std::max(lower_bound, temp_minaggsize);
+                    }
+
+                    new_value = (upper_bound - lower_bound) * (double)std::rand() / RAND_MAX + lower_bound;
+                    
                     if (preconditioner_parameters[j][4] == "bool") {
                         if (new_value == 0) {
                             new_value = 1;
@@ -502,46 +539,21 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                             new_value = 0;
                         }
                     }
-                    else if (new_value == 0) {
-                        new_value = (max_value - min_value) * (double)std::rand() / RAND_MAX + min_value;
-                    }
-                    else if (new_value == 1 && preconditioner_parameters[j][4] == "int") {
-                        new_value = (max_value - min_value) * (double)std::rand() / RAND_MAX + min_value;
-                    }
-                    else {
-                        double random_number = (2 * (double)std::rand() / RAND_MAX - 1);
-                        new_value += new_value * random_number;
-                    }
 
-                    if (new_value < min_value) {
-                        new_value = min_value;
-                    }
-                    if (new_value > max_value) {
-                        new_value = max_value;
-                    }
-                    if (preconditioner_parameters[j][4] == "int") {
+                    if (preconditioner_parameters[j][4] == "int" || preconditioner_parameters[j][4] == "bool") {
                         new_value = std::round(new_value);
                     }
                 }
-                
-                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.minaggsize" || preconditioner_parameters[j][0] == "preconditioner.minaggsize") {
-                    int temp_maxaggsize;
-                    if (pc_Type == "cpr") {
-                        temp_maxaggsize = prm_json.get<int>("preconditioner.coarsesolver.preconditioner.maxaggsize");
-                    } else if (pc_Type == "amg") {
-                        temp_maxaggsize = prm_json.get<int>("preconditioner.maxaggsize");
-                    }
-                    if (new_value > temp_maxaggsize) {
-                        new_value = temp_maxaggsize;
-                    }
-                }
-                
-                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother") {
-                    prm_json.put(preconditioner_parameters[p][j], smoothers[int(new_value)]);
+                                
+                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother" ||
+                    preconditioner_parameters[j][0] == "preconditioner.smoother") {
+                    new_parameter_values_list[p][j] = stod(preconditioner_parameters[j][1]);
+                    //new_parameter_values_list[p][j] = new_value;
+                    //prm_json.put(preconditioner_parameters[j][0], smoothers[int(new_value)]);
                     continue;
                 }
-                prm_json.put(preconditioner_parameters[j][0], new_value);
                 new_parameter_values_list[p][j] = new_value;
+                prm_json.put(preconditioner_parameters[j][0], new_value);
             }
 
             for (int j = 0; j < num_parameters; j++) {
@@ -568,15 +580,24 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
                 new_iterations_list[p] = 0;
                 bool not_converged = false;
+                bool too_slow = false;
 
-                for (int sys = 0; sys < sysNum; ++sys) {
+                for (int sys = 0; sys < sysNum; sys++) {
 
-                    if (not_converged) {
+                    if (not_converged || too_slow) {
+                        for (int sys = 0; sys < sysNum; sys++) {
+                            new_times_list[p][sys][0] = std::numeric_limits<double>::infinity();
+                            new_times_list[p][sys][1] = std::numeric_limits<double>::infinity();
+                            new_iterations_list[p] = std::numeric_limits<double>::infinity();
+                        }
+                        if (rank == 0) {
+                            std::cout << "Too slow or did not converge." << std::endl;
+                        }
                         break;
                     }
 
                     if (rank == 0) {
-                        std::cout << "\n\tSolving linear system number: " << sys << std::endl;
+                        std::cout << "\n\tSolving linear system number: " << sys + 1 << " out of " << sysNum << " systems." << std::endl;
                     }
 
                     new_times_list[p][sys][0] = std::numeric_limits<double>::infinity();
@@ -611,14 +632,17 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                         fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
                         temp_time += stat.elapsed;
 
+                        if (temp_time > max_time_limit * times[0][sys][0]) {
+                            too_slow = true;
+                            break;
+                        }
+
+                        if (stat.iterations == prm_json.get<int>("maxiter")) {
+                            not_converged = true;
+                            break;
+                        }
+
                         if (temp_time < new_times_list[p][sys][0]) {
-                            if (stat.iterations == prm_json.get<int>("maxiter")) {
-                                new_times_list[p][sys][0] = std::numeric_limits<double>::infinity();
-                                new_times_list[p][sys][1] = std::numeric_limits<double>::infinity();
-                                new_iterations_list[p] = std::numeric_limits<double>::infinity();
-                                not_converged = true;
-                                break;
-                            }
                             new_times_list[p][sys][0] = temp_time;
                             new_times_list[p][sys][1] = temp_update_time;
                             if (k == 0) {
@@ -651,7 +675,8 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
         // Reset preconditioner to current best before calculating gradient
         for (int j = 0; j < num_parameters; j++) {
-            if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother") {
+            if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother" ||
+                preconditioner_parameters[j][0] == "preconditioner.smoother") {
                 prm_json.put(preconditioner_parameters[j][0], smoothers[std::stoi(preconditioner_parameters[j][1])]);
                 continue;
             }
@@ -662,6 +687,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
         // solving the linear system with these values
         double array[num_parameters];
         double new_gradient_value;
+        bool all_infinite = false;
         for (int j = 0; j < num_parameters; j++) {
             double old_value = stod(preconditioner_parameters[j][1]);
             double min_value = stod(preconditioner_parameters[j][2]);
@@ -684,6 +710,11 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                 for (int sys = 0; sys < sysNum; sys++) {
                     array[j] += (times[i-1][sys][0] - new_times_list[p][sys][0]) * (new_parameter_values_list[p][j] - old_value);
                 }
+            }
+
+            if (num_completed_computations == 0) {
+                all_infinite = true;
+                break;
             }
 
             double total_time = 0;
@@ -719,12 +750,19 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                     new_gradient_value = temp_maxaggsize;
                 }
             }
+
             new_parameter_values_list[num_perturbations][j] = new_gradient_value;
-            if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother") {
-                prm_json.put(preconditioner_parameters[j][0], smoothers[int(new_parameter_values_list[num_perturbations][j])]);
+            if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother" ||
+                preconditioner_parameters[j][0] == "preconditioner.smoother") {
+                prm_json.put(preconditioner_parameters[j][0], smoothers[int(new_gradient_value)]);
                 continue;
             }
-            prm_json.put(preconditioner_parameters[j][0], new_parameter_values_list[num_perturbations][j]);
+            prm_json.put(preconditioner_parameters[j][0], new_gradient_value);
+        }
+
+        if (all_infinite) {
+            i--;
+            continue;
         }
 
         // Ensure that not both pre- and post-smooth are 0
@@ -742,6 +780,27 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                 for (int j = 0; j < num_parameters; j++) {
                     if (preconditioner_parameters[j][0] == "preconditioner.post_smooth") {
                         new_parameter_values_list[num_perturbations][j] = 1;
+                    }
+                }
+            }
+        }
+        if (pc_Type == "cpr") {
+            if (prm_json.get<double>("preconditioner.coarsesolver.preconditioner.pre_smooth") == 0 &&
+                prm_json.get<double>("preconditioner.coarsesolver.preconditioner.post_smooth") == 0) {
+                if ((double)std::rand() / RAND_MAX > 0.5) {
+                    prm_json.put("preconditioner.coarsesolver.preconditioner.pre_smooth", 1);
+                    for (int j = 0; j < num_parameters; j++) {
+                        if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.pre_smooth") {
+                            new_parameter_values_list[num_perturbations][j] = 1;
+                        }
+                    }
+                }
+                else {
+                    prm_json.put("preconditioner.coarsesolver.preconditioner.post_smooth", 1);
+                    for (int j = 0; j < num_parameters; j++) {
+                        if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.post_smooth") {
+                            new_parameter_values_list[num_perturbations][j] = 1;
+                        }
                     }
                 }
             }
@@ -771,15 +830,24 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
             new_iterations_list[num_perturbations] = 0;
             bool not_converged = false;
+            bool too_slow = false;
 
             for (int sys = 0; sys < sysNum; ++sys) {
                 
-                if (not_converged) {
+                if (not_converged || too_slow) {
+                    for (int sys = 0; sys < sysNum; sys++) {
+                        new_times_list[num_perturbations][sys][0] = std::numeric_limits<double>::infinity();
+                        new_times_list[num_perturbations][sys][1] = std::numeric_limits<double>::infinity();
+                        new_iterations_list[num_perturbations] = std::numeric_limits<double>::infinity();
+                    }
+                    if (rank == 0) {
+                        std::cout << "Too slow or did not converge." << std::endl;
+                    }
                     break;
                 }
                 
                 if (rank == 0) {
-                    std::cout << "\n\tSolving linear system number: " << sys << std::endl;
+                    std::cout << "\n\tSolving linear system number: " << sys + 1 << " out of " << sysNum << " systems." << std::endl;
                 }
 
                 new_times_list[num_perturbations][sys][0] = std::numeric_limits<double>::infinity();
@@ -814,18 +882,21 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                     fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
                     temp_time += stat.elapsed;
 
+                    if (temp_time > max_time_limit * times[0][sys][0]) {
+                        too_slow = true;
+                        break;
+                    }
+
+                    if (stat.iterations == prm_json.get<int>("maxiter")) {
+                        not_converged = true;
+                        break;
+                    }
+
                     if (temp_time < new_times_list[num_perturbations][sys][0]) {
-                        if (stat.iterations == prm_json.get<int>("maxiter")) {
-                            new_times_list[num_perturbations][sys][0] = std::numeric_limits<double>::infinity();
-                            new_times_list[num_perturbations][sys][1] = std::numeric_limits<double>::infinity();
-                            new_iterations_list[num_perturbations] = std::numeric_limits<double>::infinity();
-                            not_converged = true;
-                            break;
-                        }
                         new_times_list[num_perturbations][sys][0] = temp_time;
                         new_times_list[num_perturbations][sys][1] = temp_update_time;
                         if (k == 0) {
-                            new_iterations_list[num_perturbations] = stat.iterations;
+                            new_iterations_list[num_perturbations] += stat.iterations;
                         }
                     }
                 }
@@ -848,7 +919,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
         }
 
         // Find the fastest parameter values (from perturbed plus gradient)
-        double best_relative_improvement = 0;
+        double best_relative_improvement = -std::numeric_limits<double>::infinity();
         int min_index;
         bool is_gradient_lowest = false;
         for (int indx = 1; indx < num_perturbations + 1; indx++) {
@@ -864,7 +935,6 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
             if (is_infinite) {
                 continue;
             }
-            if (rank == 0) { std::cout << relative_improvement << std::endl; }
             if (relative_improvement > best_relative_improvement) {
                 best_relative_improvement = relative_improvement;
                 min_index = indx;
@@ -910,9 +980,21 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                 }
             }
             for (int j = 0; j < num_parameters; j++) {
-                preconditioner_parameters[j][1] = std::to_string(new_parameter_values_list[min_index][j]);
+                if (preconditioner_parameters[j][4] == "int" || preconditioner_parameters[j][4] == "bool") {
+                    preconditioner_parameters[j][1] = std::to_string((int)new_parameter_values_list[min_index][j]);
+                }
+                else {
+                    preconditioner_parameters[j][1] = std::to_string(new_parameter_values_list[min_index][j]);
+                }
+                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.smoother" ||
+                    preconditioner_parameters[j][0] == "preconditioner.smoother") {
+                    prm_json.put(preconditioner_parameters[j][0], smoothers[std::stoi(preconditioner_parameters[j][1])]);
+                }
+                else {
+                    prm_json.put(preconditioner_parameters[j][0], preconditioner_parameters[j][1]);
+                }
                 if (rank == 0) {
-                    std::cout << preconditioner_parameters[j][0] << ": " << preconditioner_parameters[j][1] << std::endl;
+                    std::cout << preconditioner_parameters[j][0] << ": " << prm_json.get<std::string>(preconditioner_parameters[j][0]) << std::endl;
                 }
             }
         }
@@ -927,14 +1009,30 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
     // Print out final information about times and iterations over the optimisation,
     // and the final best parameter values
+
+    std::chrono::steady_clock::time_point end_time_optim = std::chrono::steady_clock::now();
+    double total_time;
     if (rank == 0) {
         std::cout << "\n(Times, iterations):" << std::endl;
-        for (int i = 0; i < sizeof(times)/sizeof(times[0][0]); i++) {
-            std::cout << "(" << times[i][0] << ", " << iterations[i] << ")" << std::endl;
+        for (int i = 0; i < num_iterations + 1; i++) {
+            total_time = 0;
+            for (int sys = 0; sys < sysNum; sys++) {
+                total_time += times[i][sys][0];
+            }
+            std::cout << "(" << total_time << ", " << iterations[i] << ")" << std::endl;
         }
         std::cout << "\nParameter values:" << std::endl;
         for (int i = 0; i < num_parameters; i++) {
-            std::cout << preconditioner_parameters[i][0] << ": " << preconditioner_parameters[i][1] << std::endl;
+            if (preconditioner_parameters[i][0] == "preconditioner.coarsesolver.preconditioner.smoother" ||
+                preconditioner_parameters[i][0] == "preconditioner.smoother") {
+                prm_json.put(preconditioner_parameters[i][0], smoothers[std::stoi(preconditioner_parameters[i][1])]);
+            }
+            else {
+                prm_json.put(preconditioner_parameters[i][0], preconditioner_parameters[i][1]);
+            }
+            std::cout << preconditioner_parameters[i][0] << ": " << prm_json.get<std::string>(preconditioner_parameters[i][0]) << std::endl;
         }
+        std::cout << "Time spent on the optimisation: " <<
+                        std::chrono::duration_cast<std::chrono::seconds>(end_time_optim - start_time_optim).count() << " seconds" << std::endl;
     }
 }
