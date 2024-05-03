@@ -22,6 +22,17 @@
 
 #endif // OPM_JSONSOLVEGENERAL_HEADER_INCLUDED
 
+template<class J>
+void print_json_options(J prm, bool cpr)
+{
+    if (cpr) {
+    }
+    else {
+	std::cout << std::setprecision (15) << "alpha "  << prm.get("preconditioner.alpha",0.1) << std::endl;
+    }
+
+}
+
 template<class Mat, class Vec>
 void gen_dim_jsonSolve(int argc, char** argv)
 {
@@ -78,6 +89,7 @@ void gen_dim_jsonSolve(int argc, char** argv)
     
     auto fs_json = std::make_unique<FlexibleSolverType>(linOp, *parComm, prm_json, quasi, pidx);
 
+    if (rank==0) {print_json_options(prm_json, pc_Type == "cpr");}
     Vec x(rhs_loc.size());
     x=0;
     Vec crhs(rhs_loc);
