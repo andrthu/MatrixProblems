@@ -362,6 +362,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
     
     // Set seed for random number generator (do we need this?)
     std::srand(std::time(NULL));
+    double random_number;
 
     // Initialise variables needed to get info about update time (i.e. updating preconditioner before new time step)
     std::ostringstream oss;
@@ -502,7 +503,9 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                 double new_value = stod(preconditioner_parameters[j][1]);
 
                 // Only change some of the parameter values
-                if ((double)std::rand() / RAND_MAX < 0.6) {
+                random_number = (double)std::rand();
+                cc.broadcast(&random_number, 1, 0);
+                if (random_number / RAND_MAX < 0.6) {
                     double min_value = stod(preconditioner_parameters[j][2]);
                     double max_value = stod(preconditioner_parameters[j][3]);
                     
@@ -529,7 +532,9 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                         lower_bound = std::max(lower_bound, temp_minaggsize);
                     }
 
-                    new_value = (upper_bound - lower_bound) * (double)std::rand() / RAND_MAX + lower_bound;
+                    random_number = (double)std::rand();
+                    cc.broadcast(&random_number, 1, 0);
+                    new_value = (upper_bound - lower_bound) * random_number / RAND_MAX + lower_bound;
                     
                     if (preconditioner_parameters[j][4] == "bool") {
                         if (new_value == 0) {
@@ -767,7 +772,9 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
         // Ensure that not both pre- and post-smooth are 0
         if (prm_json.get<double>("preconditioner.pre_smooth") == 0 && prm_json.get<double>("preconditioner.post_smooth") == 0) {
-            if ((double)std::rand() / RAND_MAX > 0.5) {
+            random_number = (double)std::rand();
+            cc.broadcast(&random_number, 1, 0);
+            if (random_number / RAND_MAX > 0.5) {
                 prm_json.put("preconditioner.pre_smooth", 1);
                 for (int j = 0; j < num_parameters; j++) {
                     if (preconditioner_parameters[j][0] == "preconditioner.pre_smooth") {
@@ -787,7 +794,9 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
         if (pc_Type == "cpr") {
             if (prm_json.get<double>("preconditioner.coarsesolver.preconditioner.pre_smooth") == 0 &&
                 prm_json.get<double>("preconditioner.coarsesolver.preconditioner.post_smooth") == 0) {
-                if ((double)std::rand() / RAND_MAX > 0.5) {
+                random_number = (double)std::rand();
+                cc.broadcast(&random_number, 1, 0);
+                if (random_number / RAND_MAX > 0.5) {
                     prm_json.put("preconditioner.coarsesolver.preconditioner.pre_smooth", 1);
                     for (int j = 0; j < num_parameters; j++) {
                         if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.pre_smooth") {
