@@ -68,7 +68,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 	}
     }
 
-    if (rank == 0) {std::cout << std::endl;}
+    if (rank == 0) {std::cout << std::setprecision (15) << std::endl;}
 
     Opm::FlowLinearSolverParameters flsp_json;
     flsp_json.linsolver_ = DR.dict[12];
