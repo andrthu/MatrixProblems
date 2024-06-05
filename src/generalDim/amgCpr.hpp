@@ -36,7 +36,7 @@ void gen_dim_amgCprTest(int argc, char** argv)
     typedef GhostLastMatrixAdapter<Mat,Vec,Vec,Comm> GLO;
     typedef Opm::ParallelOverlappingILU0<Mat,Vec,Vec,Comm> ILU;
     typedef Dune::Amg::AMGCPR<GLO, Vec, ILU, Comm> AMGCPR;
-    typedef Dune::FlexibleSolver<Mat, Vec> FlexibleSolverType;
+    typedef Dune::FlexibleSolver<GLO> FlexibleSolverType;
 
     using Smoother = ILU;
     using SmootherArgs = typename Dune::Amg::SmootherTraits<Smoother>::Arguments;
@@ -61,7 +61,7 @@ void gen_dim_amgCprTest(int argc, char** argv)
     typedef Dune::Amg::AggregationCriterion<Dune::Amg::SymmetricDependency<CoarseMat, Dune::Amg::FirstDiagonal>> CoarseCriterionBase;
     typedef Dune::Amg::CoarsenCriterion<CoarseCriterionBase> CoarseCriterion;
     
-    typedef Opm::PressureTransferPolicy<GLO, CGLO, Comm, false> LevelTransferPolicy;
+    typedef Opm::PressureTransferPolicy<GLO, Comm, false> LevelTransferPolicy;
     typedef OneStepAMGCoarseSolverPolicyCpr<CGLO, CILU, CoarseCriterion, Comm, LevelTransferPolicy> AMGSolver;
     typedef Dune::Amg::PressureSolverPolicy<CGLO,AMGSolver,LevelTransferPolicy> CoarseSolverPolicy;
     typedef Dune::Amg::TwoLevelMethodCpr<GLO, AMGSolver, ILU> TwoLevelMethod;
@@ -99,7 +99,7 @@ void gen_dim_amgCprTest(int argc, char** argv)
 	return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(A_loc, pidx, false);
     };
 
-    auto cpr = std::make_shared<Dune::OwningTwoLevelPreconditioner<GLO, Vec, false, Comm>>(glLinOp, prm_json, quasi, pidx, *parComm);
+    auto cpr = std::make_shared<Dune::OwningTwoLevelPreconditioner<GLO, Vec, LevelTransferPolicy, Comm>>(glLinOp, prm_json, quasi, pidx, *parComm);
 
     std::string use_ilu("ILU");
     auto ilu_help = Opm::convertString2Milu(use_ilu);

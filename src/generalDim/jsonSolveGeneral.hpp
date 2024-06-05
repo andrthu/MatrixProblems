@@ -46,7 +46,7 @@ void gen_dim_jsonSolve(int argc, char** argv)
     typedef GhostLastMatrixAdapter<Mat,Vec,Vec,Comm> GLO;                 // solveParallel/ghostLastOperations.hpp
     typedef Dune::OverlappingSchwarzOperator<Mat,Vec,Vec,Comm> Operator;
     typedef Opm::ParallelOverlappingILU0<Mat,Vec,Vec,Comm> ILU;
-    typedef Dune::FlexibleSolver<Mat, Vec> FlexibleSolverType;
+    typedef Dune::FlexibleSolver<GLO> FlexibleSolverType;
 
     const auto block_size = Vec::block_type::dimension;
     
@@ -111,7 +111,7 @@ void gen_dim_jsonSolve_extended(int argc, char** argv)
     typedef GhostLastMatrixAdapter<Mat,Vec,Vec,Comm> GLO;                 // solveParallel/ghostLastOperations.hpp
     typedef Dune::OverlappingSchwarzOperator<Mat,Vec,Vec,Comm> Operator;
     typedef Opm::ParallelOverlappingILU0<Mat,Vec,Vec,Comm> ILU;
-    typedef Dune::FlexibleSolver<Mat, Vec> FlexibleSolverType;
+    typedef Dune::FlexibleSolver<GLO> FlexibleSolverType;
 
     CollectiveCommunication cc(MPI_COMM_WORLD);
     int rank = cc.rank();
@@ -199,7 +199,7 @@ void gen_dim_jsonSolve_compare_parallel(int argc, char** argv)
     typedef GhostLastMatrixAdapter<Mat,Vec,Vec,Comm> GLO;                 // solveParallel/ghostLastOperations.hpp
     typedef Dune::OverlappingSchwarzOperator<Mat,Vec,Vec,Comm> Operator;
     typedef Opm::ParallelOverlappingILU0<Mat,Vec,Vec,Comm> ILU;
-    typedef Dune::FlexibleSolver<Mat, Vec> FlexibleSolverType;
+    typedef Dune::FlexibleSolver<GLO> FlexibleSolverType;
 
     CollectiveCommunication cc(MPI_COMM_WORLD);
     int rank = cc.rank();

@@ -35,7 +35,7 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
     typedef GhostLastMatrixAdapter<Mat,Vec,Vec,Comm> GLO;                 // solveParallel/ghostLastOperations.hpp
     typedef Dune::OverlappingSchwarzOperator<Mat,Vec,Vec,Comm> Operator;
     typedef Opm::ParallelOverlappingILU0<Mat,Vec,Vec,Comm> ILU;
-    typedef Dune::FlexibleSolver<Mat, Vec> FlexibleSolverType;
+    typedef Dune::FlexibleSolver<GLO> FlexibleSolverType;
 
     const auto block_size = Vec::block_type::dimension;
     

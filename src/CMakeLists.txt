@@ -5,7 +5,6 @@ cmake_policy(SET CMP0074 NEW)
 find_package(Zoltan CONFIG REQUIRED)
 find_package(opm-common CONFIG REQUIRED)
 find_package(opm-grid CONFIG REQUIRED)
-find_package(opm-material CONFIG REQUIRED)
 find_package(opm-simulators CONFIG REQUIRED)
 
 
@@ -113,76 +112,6 @@ add_executable("singleHierarchyMultJsonSolveCO2"
   partition/flexibleSolverTimer.hpp
   generalDim/singleHierarchymultJsonSolveGeneral.hpp)
 
-add_executable("amgCprTest"
-  amgCprTest.cpp
-  io/inputRead.hpp
-  io/dictRead.hpp
-  solveParallel/ghostLastOperations.hpp
-  partition/graphFunctions.hpp
-  partition/overlapCreation.hpp
-  solveParallel/reorder.hpp
-  solveParallel/buildLocalMatrix.hpp
-  solveParallel/nonQuadraticLocalMatrix.hpp
-  partition/setIndexSet.hpp
-  partition/evaluatePartition.hpp
-  partition/meassureCommunication.hpp
-  partition/meassureOperationsMinLoop.hpp
-  partition/flexibleSolverTimer.hpp
-  solveParallel/amgSetup.hpp
-  generalDim/amgCpr.hpp)
-
-add_executable("amgCprCo2Test"
-  amgCprCo2Test.cpp
-  io/inputRead.hpp
-  io/dictRead.hpp
-  solveParallel/ghostLastOperations.hpp
-  partition/graphFunctions.hpp
-  partition/overlapCreation.hpp
-  solveParallel/reorder.hpp
-  solveParallel/buildLocalMatrix.hpp
-  solveParallel/nonQuadraticLocalMatrix.hpp
-  partition/setIndexSet.hpp
-  partition/evaluatePartition.hpp
-  partition/meassureCommunication.hpp
-  partition/meassureOperationsMinLoop.hpp
-  partition/flexibleSolverTimer.hpp
-  solveParallel/amgSetup.hpp)
-
-add_executable("twoLevelMethodTest"
-  twoLevelMethodTest.cpp
-  io/inputRead.hpp
-  io/dictRead.hpp
-  solveParallel/ghostLastOperations.hpp
-  partition/graphFunctions.hpp
-  partition/overlapCreation.hpp
-  solveParallel/reorder.hpp
-  solveParallel/buildLocalMatrix.hpp
-  solveParallel/nonQuadraticLocalMatrix.hpp
-  partition/setIndexSet.hpp
-  partition/evaluatePartition.hpp
-  partition/meassureCommunication.hpp
-  partition/meassureOperationsMinLoop.hpp
-  partition/flexibleSolverTimer.hpp
-  solveParallel/amgSetup.hpp
-  generalDim/twoLevelMethod.hpp)
-
-add_executable("twoLevelMethodTestCO2"
-  twoLevelMethodTestCO2.cpp
-  io/inputRead.hpp
-  io/dictRead.hpp
-  solveParallel/ghostLastOperations.hpp
-  partition/graphFunctions.hpp
-  partition/overlapCreation.hpp
-  solveParallel/reorder.hpp
-  solveParallel/buildLocalMatrix.hpp
-  solveParallel/nonQuadraticLocalMatrix.hpp
-  partition/setIndexSet.hpp
-  partition/evaluatePartition.hpp
-  partition/meassureCommunication.hpp
-  partition/meassureOperationsMinLoop.hpp
-  partition/flexibleSolverTimer.hpp
-  solveParallel/amgSetup.hpp
-  generalDim/twoLevelMethod.hpp)
 
 add_executable("eclipseIO"
   eclipseIO.cpp
@@ -195,10 +124,6 @@ set(opm_dep
   multJsonSolveCO2
   singleHierarchyMultJsonSolve
   singleHierarchyMultJsonSolveCO2
-  amgCprTest
-  amgCprCo2Test
-  twoLevelMethodTest
-  twoLevelMethodTestCO2
   eclipseIO
   )
 

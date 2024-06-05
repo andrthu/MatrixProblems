@@ -36,7 +36,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
     typedef GhostLastMatrixAdapter<Mat,Vec,Vec,Comm> GLO;                 // solveParallel/ghostLastOperations.hpp
     typedef Dune::OverlappingSchwarzOperator<Mat,Vec,Vec,Comm> Operator;
     typedef Opm::ParallelOverlappingILU0<Mat,Vec,Vec,Comm> ILU;
-    typedef Dune::FlexibleSolver<Mat, Vec> FlexibleSolverType;
+    typedef Dune::FlexibleSolver<GLO> FlexibleSolverType;
 
     const auto block_size = Vec::block_type::dimension;
     
@@ -60,6 +60,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 	else {
 	    Mat A_loc;
 	    Vec rhs_loc;
+
 	    mpiVec = readMatOnRootAndDist(systemDirs[i], A_loc, rhs_loc, DR, comm, parComm, cc, mpiVec, true, i!=0);
 
 	    systems.push_back(A_loc);
@@ -106,5 +107,6 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 	matrix = &systems[i];
 	fs_json->preconditioner().update();
 	fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
+
     }
 }
