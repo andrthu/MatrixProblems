@@ -256,3 +256,41 @@ void evalWellCommOnRoot(const std::vector<int>& part, const M& wells, const C& c
 	}
     }
 }
+
+template<class C, class M, class G>
+void evalGhostOnRoot(const std::vector<int>& part, const M& A, const G& trans, const C& cc)
+{
+    
+    if (cc.rank() == 0) {
+
+	for (int rank = 0; rank < cc.size(); ++rank ) {
+
+	    std::map<int,int> ghost;
+	    std::map<int,int> ghost2;
+	    int bs = 0;
+	    for (auto row = A.begin(); row != A.end(); ++row) {
+
+		if (rank == part[row.index()]) {
+
+		    for (auto col = row->begin(); col!= row->end(); ++col) {
+
+			if (rank != part[col.index()]) {
+
+			    ghost[col.index()] = 1;
+			    if (trans.exists(row.index(),col.index())) {
+				if (trans[row.index()][col.index()] > 0) {
+				    ghost2[col.index()] = 1;
+				}
+			    } else {
+				bs++;
+			    }
+			}
+		    }
+		}
+		
+	    }
+	    std::cout << "Pre-dist ghost Rank " << rank << ": " << ghost.size() << " remove fault: "<< ghost2.size()<< " mystery: "<< bs << std::endl; 
+	    
+	}
+    }
+}

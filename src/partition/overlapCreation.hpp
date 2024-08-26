@@ -260,6 +260,7 @@ std::vector<int> readMatOnRootAndDist(int argc, char** argv, Mat& A_loc, Vec& rh
 	if (cc.size() > 1) {
 	    zoltanPartitionFunction(mpivec, trans, wells, cc, DR, row_size);
 	    //evalWellCommOnRoot(mpivec,wells,cc);
+	    //evalGhostOnRoot(mpivec,A,trans,cc);
 	}
 	if (rank == 0) {std::cout << "Zoltan partition complete"<< std::endl;}
 	cc.barrier();
@@ -355,6 +356,7 @@ std::vector<int> readMatOnRootAndDist(std::string systemDir, Mat& A_loc, Vec& rh
 	    else
 		zoltanPartitionFunction(mpivec, trans, wells, cc, DR, row_size);
 	    //evalWellCommOnRoot(mpivec,wells,cc);
+	    //evalGhostOnRoot(mpivec,A,trans,cc);
 	}
 	if (!usePartVec)
 	    if (rank == 0) {std::cout << "Zoltan partition complete"<< std::endl;}
