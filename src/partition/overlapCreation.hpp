@@ -22,6 +22,8 @@
 
 #endif // OPM_OVERLAPCREATION_HEADER_INCLUDED
 
+#include "copyAndRemoveZeroTrans.hpp"
+
 template<class Comm>
 void myIds(std::vector<int>& local2global, std::vector<int>& global2local, 
 	   std::vector<int>& overlap, Comm comm)
@@ -241,11 +243,13 @@ std::vector<int> readMatOnRootAndDist(int argc, char** argv, Mat& A_loc, Vec& rh
     
     if (cc.size() > 0) {
 	Vec rhs;
-	Mat A, A_loc_;
+	Mat A, A_loc_, A__;
     
-	handleMatrixSystemInputSomeRanks(argc, argv, A, trans, wells, rhs, DR, cc, rank==0);
+	handleMatrixSystemInputSomeRanks(argc, argv, A__, trans, wells, rhs, DR, cc, rank==0);
 	DR.dict[5] = "2"; //Zoltan debug level
 	if (rank == 0) {std::cout << "Reading Matrices complete"<< std::endl;}
+
+	if (rank == 0) {copyAndRemoveZeroTrans(A__,A,trans,wells);}
 	
 	int N;
 	if (rank == 0)
@@ -332,13 +336,16 @@ std::vector<int> readMatOnRootAndDist(std::string systemDir, Mat& A_loc, Vec& rh
     std::vector<int> mpivec;
     if (cc.size() > 0) {
 	Vec rhs;
-	Mat A, A_loc_;
+	Mat A, A_loc_,A__;
 
 	if (rank == 0)
-	    readFromDir(A,trans,wells,rhs,systemDir,rank, !usePartVec);
+	    readFromDir(A__,trans,wells,rhs,systemDir,rank, !usePartVec);
 
+	if (rank == 0) {copyAndRemoveZeroTrans(A__,A,trans,wells);}
+	
 	DR.dict[5] = "2"; //Zoltan debug level
 	if (rank == 0) {std::cout << "Reading Matrices complete"<< std::endl;}
+
 	
 	int N;
 	if (rank == 0)

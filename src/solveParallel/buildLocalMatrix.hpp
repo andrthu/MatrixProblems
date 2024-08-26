@@ -22,6 +22,7 @@
 
 #endif // OPM_BUILDLOCALMATRIX_HEADER_INCLUDED
 
+
 ///Construct adjecency pattern of local matrix based on global adjecency pattern.
 template<class Mat>
 Dune::MatrixIndexSet getAdjecency(Mat& A, std::vector<int>& overlap, 
