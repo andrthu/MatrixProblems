@@ -338,8 +338,8 @@ std::vector<int> readMatOnRootAndDist(std::string systemDir, Mat& A_loc, Vec& rh
 	Vec rhs;
 	Mat A, A_loc_,A__;
 
-	if (rank == 0)
-	    readFromDir(A__,trans,wells,rhs,systemDir,rank, !usePartVec);
+	if (rank == 0) 
+	    readFromDir(A__,trans,wells,rhs,systemDir,rank,true);// !usePartVec);
 
 	if (rank == 0) {copyAndRemoveZeroTrans(A__,A,trans,wells);}
 	
