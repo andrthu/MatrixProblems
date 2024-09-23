@@ -57,7 +57,7 @@ public:
     dict[0]  = std::string("1");    //Use trans
     dict[1]  = std::string("0.01"); //tolerance
     dict[2]  = std::string("500");  //Max iter
-    dict[3]  = std::string("1.05"); //IMBALANCE_TOL
+    dict[3]  = std::string("1.01"); //IMBALANCE_TOL
     dict[4]  = std::string("1");    //Use wells
     dict[5]  = std::string("2");    //Zoltan DEBUG_LEVEL
     dict[6]  = std::string("0");    //Compare par sol to seq sol

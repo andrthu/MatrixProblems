@@ -309,6 +309,7 @@ void getMatWellNumEdgesList(void *graphPointer, int sizeGID, int sizeLID,
 	auto tcol = trow->begin();
 	for (; tcol != trow->end(); ++tcol)
 	{
+	    //if ( *tcol > 0 )
 	    edges++;
 	}
 
@@ -458,16 +459,18 @@ void getWellWeightMatEdgeList(void *graphPointer, int sizeGID, int sizeLID,
 	for (; wcol != wrow->end(); ++wcol)
 	{
 	    nborGID[idx] = wcol.index();
-	    ewgts[idx++] = 1.0e10;//std::numeric_limits<float>::max();
+	    ewgts[idx++] = std::numeric_limits<float>::max();//1.0e10;
 	}
 
 	auto tcol = trow->begin();
 	for (; tcol != trow->end(); ++tcol)
 	{    
 	    if (tcol.index() != trow.index()) {
-		
+
+		//if (*tcol > 0) {
 		nborGID[idx] = tcol.index();
 		ewgts[idx++] = scaler*(*tcol);
+		//}
 	    }
 	}
     }
@@ -617,11 +620,11 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
     
     if (rank ==0) {
 
-	for (int r = 0; r < rankIsZero.size(); ++r) {
+	/*for (int r = 0; r < rankIsZero.size(); ++r) {
 	    std::cout << r << ":" << rankIsZero[r]<<std::endl;
 	}
 	std::cout <<std::endl;
-	
+	*/
 	if (zeroRankPresent) {
 	    std::cout << "Zero partitions present: ";
 	    for (int r = 0; r < rankIsZero.size(); ++r) {
