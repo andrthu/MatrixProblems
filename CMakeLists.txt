@@ -1,3 +1,4 @@
+#set(CMAKE_MODULE_PATH /home/andreast/modules/flow/202309a/ss/master2024.oct/share/opm/cmake/Modules)
 cmake_minimum_required(VERSION 2.8.12)
 project(MatrixProblems CXX)
 

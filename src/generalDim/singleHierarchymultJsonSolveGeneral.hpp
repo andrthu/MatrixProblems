@@ -76,7 +76,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
     Opm::PropertyTree prm_json(flsp_json.linsolver_);
     std::string pc_Type = prm_json.get<std::string>("preconditioner.type");
-    if (pc_Type == "cpr") {
+    if (pc_Type == "cpr" || pc_Type == "cprw") {
 	prm_json.put("preconditioner.coarsesolver.preconditioner.verbosity", 10);
     }
     prm_json.put("preconditioner.verbosity", 10);

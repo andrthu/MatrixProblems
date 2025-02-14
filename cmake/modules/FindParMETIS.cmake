@@ -19,7 +19,7 @@
 #
 # find_package(ParMETIS)
 
-set(ParMETIS_SEARCH_PATH "/usr" "/usr/local" "/opt" "/opt/local" "${PROJECT_SOURCE_DIR}/../../usr/local")
+set(ParMETIS_SEARCH_PATH "${PARMETIS_ROOT}" "/usr" "/usr/local" "/opt" "/opt/local" "${PROJECT_SOURCE_DIR}/../../usr/local")
 
 find_package(MPI)
 

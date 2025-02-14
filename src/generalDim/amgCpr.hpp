@@ -61,7 +61,7 @@ void gen_dim_amgCprTest(int argc, char** argv)
     typedef Dune::Amg::AggregationCriterion<Dune::Amg::SymmetricDependency<CoarseMat, Dune::Amg::FirstDiagonal>> CoarseCriterionBase;
     typedef Dune::Amg::CoarsenCriterion<CoarseCriterionBase> CoarseCriterion;
     
-    typedef Opm::PressureTransferPolicy<GLO, Comm, false> LevelTransferPolicy;
+    typedef Opm::PressureTransferPolicy<GLO, Comm, double, false> LevelTransferPolicy;
     typedef OneStepAMGCoarseSolverPolicyCpr<CGLO, CILU, CoarseCriterion, Comm, LevelTransferPolicy> AMGSolver;
     typedef Dune::Amg::PressureSolverPolicy<CGLO,AMGSolver,LevelTransferPolicy> CoarseSolverPolicy;
     typedef Dune::Amg::TwoLevelMethodCpr<GLO, AMGSolver, ILU> TwoLevelMethod;

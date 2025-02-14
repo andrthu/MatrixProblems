@@ -10,7 +10,8 @@ How to compile:
 
 mkdir build;
 cd build;
-cmake -DBOOST_INCLUDEDIR=$BOOST_INCLUDEDIR -DBOOST_LIBRARYDIR=$BOOST_LIBRARYDIR -DBoost_NO_SYSTEM_PATHS=ON -DBoost_NO_BOOST_CMAKE=ON -DZOLTAN_INCLUDE_DIRS=$ZOLTAN_INCLUDEDIR -DSuiteSparse_INCLUDE_DIRS=$SUITESPARSE_INCLUDEDIR -DSuiteSparse_ROOT=$SUITESPARSE_ROOT -DZOLTAN_LIBRARIES=$ZOLTAN_LIBRARYDIR/libzoltan.a -DMETIS_ROOT=$METIS_ROOT -DPARMETIS_ROOT=$PARMETIS_ROOT -DCMAKE_CXX_FLAGS="-O2 -mavx -funroll-loops " ../;
+
+cmake -DBOOST_INCLUDEDIR=$BOOST_INCLUDEDIR -DBOOST_LIBRARYDIR=$BOOST_LIBRARYDIR -DBoost_NO_SYSTEM_PATHS=ON -DBoost_NO_BOOST_CMAKE=ON -DZOLTAN_INCLUDE_DIRS=$ZOLTAN_INCLUDEDIR -DSuiteSparse_INCLUDE_DIRS=$SUITESPARSE_ROOT/include -DSuiteSparse_LIBRARIES=$SUITESPARSE_ROOT/lib/libsuitesparseconfig.so -DSUITESPARSE_CONFIG_LIB=$SUITESPARSE_ROOT/lib/libsuitesparseconfig.so -DSUITESPARSE_INCLUDE_DIR=$SUITESPARSE_ROOT/include -DZOLTAN_LIBRARIES=$ZOLTAN_LIBRARYDIR/libzoltan.a -DMETIS_ROOT=$METIS_ROOT -DPARMETIS_INCLUDE_DIR=$PARMETIS_ROOT/include -DPARMETIS_LIBRARY=$PARMETIS_ROOT/lib/libparmetis.so -DCMAKE_CXX_FLAGS="-O2 -mavx -funroll-loops " ../;
 
 make -j 12
 
@@ -28,3 +29,8 @@ add code in src/ folder.
 add relevant code in src/CMakeLists.txt
 
 
+Needed hacks in modules for compileing (Only to remember)
+=========================================================
+1.) Remove SPQR dep in dune FindSuiteSparse.cmake
+2.) Add /suitesparse to suitesparse include path in modulefile
+3.) Use set(CMAKE_MODULE_PATH /home/andreast/modules/flow/202309a/ss/master2024.oct/share/opm/cmake/Modules) in src/CMakeLists.txt to use OPM FindSuiteSparse.cmake
