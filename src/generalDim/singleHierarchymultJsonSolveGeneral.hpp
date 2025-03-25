@@ -92,6 +92,14 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
         prm_json.put("maxiter", 150);
     }
     
+    // TEMPCHANGE
+    prm_json.put("maxiter", 20);
+    prm_json.put("tol", 0.0050000000000000001);
+    //prm_json.put("preconditioner.weight_type", "trueimpes");
+    prm_json.put("preconditioner.finesmoother.relaxation", 1);
+    prm_json.put("preconditioner.coarsesolver.preconditioner.coarsenTarget", 1200);
+    prm_json.put("preconditioner.coarsesolver.preconditioner.skip_isolated", 0);
+    
 	Dune::InverseOperatorResult stat;
 	
     // Initialise the list of parameters with initial, min and max values
@@ -107,7 +115,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
     std::string cpr_parameters[][5] = {
         {
             "preconditioner.finesmoother.relaxation",
-            "0.9",
+            "1",//"0.9",
             "0",
             "1",
             "double"
@@ -142,7 +150,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
         },
         {
             "preconditioner.coarsesolver.preconditioner.coarsenTarget",
-            "4200",
+            "1200",//"4200",
             "100",
             "10000",
             "int"
@@ -163,14 +171,14 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
         },
         {
             "preconditioner.coarsesolver.preconditioner.beta",
-            "0",//"1e-5",
+            "0",
             "0",
             "0.1",
             "double"
         },
         {
             "preconditioner.coarsesolver.preconditioner.skip_isolated", //strongly connected to beta
-            "1",
+            "0",//"1",
             "0",
             "1",
             "bool"
@@ -263,7 +271,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
         },
         {
             "preconditioner.beta",
-            "0",//"1e-5",
+            "0",
             "0",
             "0.1",
             "double"
@@ -349,6 +357,10 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
     // Initialise other necessary variables and arrays
     int sysNum = systems.size();
+    double linear_solver_tolerance = 0.01;
+    int min_smoothing_amg = 1;
+    int min_smoothing_cpr = 1;
+    int min_smoothing_amg_in_cpr = 1;
     double max_time_limit = 3;
     int num_time_measurement = 3;
     int num_iterations = 30;
@@ -367,6 +379,8 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
     // Initialise variables needed to get info about update time (i.e. updating preconditioner before new time step)
     std::ostringstream oss;
     size_t pos = 0;
+
+    prm_json.write_json(std::cout, true);
 
     std::chrono::steady_clock::time_point start_time_optim = std::chrono::steady_clock::now();
 
@@ -456,7 +470,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                         cc.broadcast(&temp_update_time, 1, 0);
 
                         cc.barrier();
-                        fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
+                        fs_json->apply(x, crhs, prm_json.get<double>("tol", linear_solver_tolerance), stat);
                         cc.barrier();
 
                         temp_time += stat.elapsed;
@@ -581,6 +595,67 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                 prm_json.put(preconditioner_parameters[j][0], new_value);
             }
 
+            // Ensure that sum of pre- and post-smooth are high enough
+            int min_smoothing;
+            if (pc_Type == "amg") {
+                min_smoothing = min_smoothing_amg;
+            }
+            else if (pc_Type == "cpr") {
+                min_smoothing = min_smoothing_cpr;
+            }
+            int num_smoothing = prm_json.get<double>("preconditioner.pre_smooth") + prm_json.get<double>("preconditioner.post_smooth");
+            if (num_smoothing < min_smoothing) {
+                for (int num_extra_smoothing = num_smoothing; num_extra_smoothing < min_smoothing; num_extra_smoothing++) {
+                    random_number = (double)std::rand();
+                    cc.broadcast(&random_number, 1, 0);
+                    if (random_number / RAND_MAX > 0.5) {
+                        prm_json.put("preconditioner.pre_smooth", prm_json.get<double>("preconditioner.pre_smooth") + 1);
+                        for (int j = 0; j < num_parameters; j++) {
+                            if (preconditioner_parameters[j][0] == "preconditioner.pre_smooth") {
+                                new_parameter_values_list[p][j] += 1;
+                            }
+                        }
+                    }
+                    else {
+                        prm_json.put("preconditioner.post_smooth", prm_json.get<double>("preconditioner.post_smooth") + 1);
+                        for (int j = 0; j < num_parameters; j++) {
+                            if (preconditioner_parameters[j][0] == "preconditioner.post_smooth") {
+                                new_parameter_values_list[p][j] += 1;
+                            }
+                        }
+                    }
+                }
+            }
+            if (pc_Type == "cpr") {
+                min_smoothing = min_smoothing_amg_in_cpr;
+                int num_smoothing = prm_json.get<double>("preconditioner.coarsesolver.preconditioner.pre_smooth") +
+                                    prm_json.get<double>("preconditioner.coarsesolver.preconditioner.post_smooth");
+                if (num_smoothing < min_smoothing) {
+                    for (int num_extra_smoothing = num_smoothing; num_extra_smoothing < min_smoothing; num_extra_smoothing++) {
+                        random_number = (double)std::rand();
+                        cc.broadcast(&random_number, 1, 0);
+                        if (random_number / RAND_MAX > 0.5) {
+                            prm_json.put("preconditioner.coarsesolver.preconditioner.pre_smooth",
+                                            prm_json.get<double>("preconditioner.coarsesolver.preconditioner.pre_smooth") + 1);
+                            for (int j = 0; j < num_parameters; j++) {
+                                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.pre_smooth") {
+                                    new_parameter_values_list[p][j] += 1;
+                                }
+                            }
+                        }
+                        else {
+                            prm_json.put("preconditioner.coarsesolver.preconditioner.post_smooth", 
+                                            prm_json.get<double>("preconditioner.coarsesolver.preconditioner.post_smooth") + 1);
+                            for (int j = 0; j < num_parameters; j++) {
+                                if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.post_smooth") {
+                                    new_parameter_values_list[p][j] += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             for (int j = 0; j < num_parameters; j++) {
                 if (rank == 0) {
                     std::cout << preconditioner_parameters[j][0] << ": " << prm_json.get<std::string>(preconditioner_parameters[j][0]) << std::endl;
@@ -665,7 +740,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                         cc.broadcast(&temp_update_time, 1, 0);
 
                         cc.barrier();
-                        fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
+                        fs_json->apply(x, crhs, prm_json.get<double>("tol", linear_solver_tolerance), stat);
                         cc.barrier();
 
                         temp_time += stat.elapsed;
@@ -811,45 +886,61 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
             continue;
         }
 
-        // Ensure that not both pre- and post-smooth are 0
-        if (prm_json.get<double>("preconditioner.pre_smooth") == 0 && prm_json.get<double>("preconditioner.post_smooth") == 0) {
-            random_number = (double)std::rand();
-            cc.broadcast(&random_number, 1, 0);
-            if (random_number / RAND_MAX > 0.5) {
-                prm_json.put("preconditioner.pre_smooth", 1);
-                for (int j = 0; j < num_parameters; j++) {
-                    if (preconditioner_parameters[j][0] == "preconditioner.pre_smooth") {
-                        new_parameter_values_list[num_perturbations][j] = 1;
+        // Ensure that sum of pre- and post-smooth are high enough
+        int min_smoothing;
+        if (pc_Type == "amg") {
+            min_smoothing = min_smoothing_amg;
+        }
+        else if (pc_Type == "cpr") {
+            min_smoothing = min_smoothing_cpr;
+        }
+        int num_smoothing = prm_json.get<double>("preconditioner.pre_smooth") + prm_json.get<double>("preconditioner.post_smooth");
+        if (num_smoothing < min_smoothing) {
+            for (int num_extra_smoothing = num_smoothing; num_extra_smoothing < min_smoothing; num_extra_smoothing++) {
+                random_number = (double)std::rand();
+                cc.broadcast(&random_number, 1, 0);
+                if (random_number / RAND_MAX > 0.5) {
+                    prm_json.put("preconditioner.pre_smooth", prm_json.get<double>("preconditioner.pre_smooth") + 1);
+                    for (int j = 0; j < num_parameters; j++) {
+                        if (preconditioner_parameters[j][0] == "preconditioner.pre_smooth") {
+                            new_parameter_values_list[num_perturbations][j] += 1;
+                        }
                     }
                 }
-            }
-            else {
-                prm_json.put("preconditioner.post_smooth", 1);
-                for (int j = 0; j < num_parameters; j++) {
-                    if (preconditioner_parameters[j][0] == "preconditioner.post_smooth") {
-                        new_parameter_values_list[num_perturbations][j] = 1;
+                else {
+                    prm_json.put("preconditioner.post_smooth", prm_json.get<double>("preconditioner.post_smooth") + 1);
+                    for (int j = 0; j < num_parameters; j++) {
+                        if (preconditioner_parameters[j][0] == "preconditioner.post_smooth") {
+                            new_parameter_values_list[num_perturbations][j] += 1;
+                        }
                     }
                 }
             }
         }
         if (pc_Type == "cpr") {
-            if (prm_json.get<double>("preconditioner.coarsesolver.preconditioner.pre_smooth") == 0 &&
-                prm_json.get<double>("preconditioner.coarsesolver.preconditioner.post_smooth") == 0) {
-                random_number = (double)std::rand();
-                cc.broadcast(&random_number, 1, 0);
-                if (random_number / RAND_MAX > 0.5) {
-                    prm_json.put("preconditioner.coarsesolver.preconditioner.pre_smooth", 1);
-                    for (int j = 0; j < num_parameters; j++) {
-                        if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.pre_smooth") {
-                            new_parameter_values_list[num_perturbations][j] = 1;
+            min_smoothing = min_smoothing_amg_in_cpr;
+            int num_smoothing = prm_json.get<double>("preconditioner.coarsesolver.preconditioner.pre_smooth") +
+                                prm_json.get<double>("preconditioner.coarsesolver.preconditioner.post_smooth");
+            if (num_smoothing < min_smoothing) {
+                for (int num_extra_smoothing = num_smoothing; num_extra_smoothing < min_smoothing; num_extra_smoothing++) {
+                    random_number = (double)std::rand();
+                    cc.broadcast(&random_number, 1, 0);
+                    if (random_number / RAND_MAX > 0.5) {
+                        prm_json.put("preconditioner.coarsesolver.preconditioner.pre_smooth",
+                                        prm_json.get<double>("preconditioner.coarsesolver.preconditioner.pre_smooth") + 1);
+                        for (int j = 0; j < num_parameters; j++) {
+                            if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.pre_smooth") {
+                                new_parameter_values_list[num_perturbations][j] += 1;
+                            }
                         }
                     }
-                }
-                else {
-                    prm_json.put("preconditioner.coarsesolver.preconditioner.post_smooth", 1);
-                    for (int j = 0; j < num_parameters; j++) {
-                        if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.post_smooth") {
-                            new_parameter_values_list[num_perturbations][j] = 1;
+                    else {
+                        prm_json.put("preconditioner.coarsesolver.preconditioner.post_smooth", 
+                                        prm_json.get<double>("preconditioner.coarsesolver.preconditioner.post_smooth") + 1);
+                        for (int j = 0; j < num_parameters; j++) {
+                            if (preconditioner_parameters[j][0] == "preconditioner.coarsesolver.preconditioner.post_smooth") {
+                                new_parameter_values_list[num_perturbations][j] += 1;
+                            }
                         }
                     }
                 }
@@ -940,7 +1031,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
                     cc.broadcast(&temp_update_time, 1, 0);
 
                     cc.barrier();
-                    fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
+                    fs_json->apply(x, crhs, prm_json.get<double>("tol", linear_solver_tolerance), stat);
                     cc.barrier();
 
                     temp_time += stat.elapsed;
