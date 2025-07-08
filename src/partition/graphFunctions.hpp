@@ -249,7 +249,12 @@ void getMatVertexList(void* graphPointer, int numGlobalIdEntries,
         lids[idx] = idx;
 	if (wgtDim == 1)
 	    objWgts[idx] = rs[idx];
+	if (wgtDim == 2) {
+	    objWgts[2 * idx ]     = 1;
+	    objWgts[2 * idx + 1 ] = rs[idx];
+	}
     }
+
     *err = ZOLTAN_OK;
 }
 
@@ -536,9 +541,10 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
     Zoltan_Set_Param(zz,"DEBUG_LEVEL",dr.dict[5].data());
     Zoltan_Set_Param(zz,"LB_METHOD","GRAPH");
 
-    //Zoltan_Set_Param(zz,"GRAPH_PACKAGE","Parmetis");
-    //Zoltan_Set_Param(zz,"PARMETIS_METHOD","PartKway");
-    //Zoltan_Set_Param(zz,"PARMETIS_OUTPUT_LEVEL","2");
+
+    Zoltan_Set_Param(zz,"GRAPH_PACKAGE","Parmetis");
+    Zoltan_Set_Param(zz,"PARMETIS_METHOD","PartKway");
+    Zoltan_Set_Param(zz,"PARMETIS_OUTPUT_LEVEL","2");
 
     Zoltan_Set_Param(zz,"LB_APPROACH","PARTITION");
     Zoltan_Set_Param(zz,"NUM_GID_ENTRIES","1");
@@ -562,14 +568,17 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
     int wgtType = std::stoi(dr.dict[0]);
     bool useWeights = wgtType != 0;
     bool useWells = std::stoi(dr.dict[4]) == 1;
-    bool useObjWeights = std::stoi(dr.dict[7]) == 1;
+    int objWgtMet = std::stoi(dr.dict[7]);
+    bool useObjWeights = objWgtMet  > 0;
     double logBase = std::exp(std::stod(dr.dict[11]));    
     
     if (useWeights || useWells)
 	Zoltan_Set_Param(zz,"EDGE_WEIGHT_DIM","1");
     
-    if (useObjWeights)
+    if (objWgtMet == 1)
 	Zoltan_Set_Param(zz,"OBJ_WEIGHT_DIM","1");
+    if (objWgtMet == 2)
+	Zoltan_Set_Param(zz,"OBJ_WEIGHT_DIM","2");
     
     TransWellGraph<M> twg(g, wells, row_size, wgtType, logBase, rank==0);
     //twg.findMin();

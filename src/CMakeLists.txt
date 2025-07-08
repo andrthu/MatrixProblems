@@ -59,6 +59,43 @@ add_executable("jsonSolveCO2"
   partition/flexibleSolverTimer.hpp
   generalDim/jsonSolveGeneral.hpp)
 
+add_executable("hirTest" 
+  hirTest.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/jsonSolveGeneral.hpp
+  generalDim/hirTest.hpp)
+
+add_executable("hirTest1dim" 
+  hirTest1dim.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/jsonSolveGeneral.hpp
+  generalDim/hirTest.hpp)
+
+
 add_executable("multJsonSolve" 
   multJsonSolve.cpp
   io/inputRead.hpp
@@ -135,6 +172,8 @@ add_executable("eclipseIO"
 set(opm_dep
   jsonSolve
   jsonSolveCO2
+  hirTest
+  hirTest1dim
   multJsonSolve
   multJsonSolveCO2
   singleHierarchyMultJsonSolve
