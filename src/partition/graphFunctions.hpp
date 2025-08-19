@@ -542,9 +542,9 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
     Zoltan_Set_Param(zz,"LB_METHOD","GRAPH");
 
 
-    Zoltan_Set_Param(zz,"GRAPH_PACKAGE","Parmetis");
-    Zoltan_Set_Param(zz,"PARMETIS_METHOD","PartKway");
-    Zoltan_Set_Param(zz,"PARMETIS_OUTPUT_LEVEL","2");
+    //Zoltan_Set_Param(zz,"GRAPH_PACKAGE","Parmetis");
+    //Zoltan_Set_Param(zz,"PARMETIS_METHOD","PartKway");
+    //Zoltan_Set_Param(zz,"PARMETIS_OUTPUT_LEVEL","2");
 
     Zoltan_Set_Param(zz,"LB_APPROACH","PARTITION");
     Zoltan_Set_Param(zz,"NUM_GID_ENTRIES","1");

@@ -218,6 +218,61 @@ void constructLocalFromRoot(Mat A, Mat& A_loc, int N, Vec& rhs, Vec& rhs_loc, co
     redistInf.redistribute(rhs, rhs_loc);
 }
 
+template<class Mat, class Vec, class Graph, class D, class Comm, class C>
+std::vector<int> partAndDistAfterRead(Mat& A, Vec& rhs,Graph trans, Graph wells, Mat& A_loc,
+				      Vec& rhs_loc, D& DR, Comm& comm, std::shared_ptr<Comm>& parComm,
+				      const C& cc, std::vector<int> partvec, bool gro,
+				      bool usePartVec)
+{
+    int rank = cc.rank();
+
+    std::vector<int> mpivec;
+    if (cc.size() > 0) {
+
+	Mat A_loc_;
+	int N;
+	if (rank == 0)
+	    N = A.N();
+	cc.broadcast(&N, 1, 0);
+
+	std::vector<int> row_size(N);
+	storeRowSizeFromRoot(A, row_size, cc);
+
+	//partition matrix
+	mpivec.resize(N, rank);
+	if (cc.size() > 1) {
+	    if (usePartVec)
+		mpivec = partvec;
+	    else
+		zoltanPartitionFunction(mpivec, trans, wells, cc, DR, row_size);
+	    //evalWellCommOnRoot(mpivec,wells,cc);
+	}
+	if (rank == 0) {std::cout << "Zoltan partition complete"<< std::endl;}
+	cc.barrier();
+	constructLocalFromRoot(A, A_loc_, N, rhs, rhs_loc, mpivec, comm, parComm, cc);
+	if (rank == 0) {std::cout << "Local Matrix construction complete"<< std::endl;}
+	parComm->remoteIndices().template rebuild<false>();
+	cc.barrier();
+	std::vector<int> rowType(A_loc_.N(), 0);
+	std::vector<int> comTab;
+	getIndexSetInfo(parComm, cc, comTab, rowType);
+	if (!usePartVec) {
+	    printComTabOnRoot(cc, comTab);
+	}
+	//remove off-diagonal NNZ on ghost rows.
+	if (cc.size() > 1)
+	    if (gro)
+		buildLocalMatrixFromLoc(A_loc_, A_loc, rowType);
+	    else
+		A_loc = A_loc_;
+	else
+	    A_loc = A_loc_;
+	printNumCells(cc, A_loc.nonzeroes(), 2);
+	
+    }
+    return mpivec;
+}
+
 template<class Mat, class Vec, class D, class Comm, class C>
 std::vector<int> readMatOnRootAndDist(int argc, char** argv, Mat& A_loc, Vec& rhs_loc,
 				      D& DR, Comm& comm, std::shared_ptr<Comm>& parComm,
@@ -246,41 +301,10 @@ std::vector<int> readMatOnRootAndDist(int argc, char** argv, Mat& A_loc, Vec& rh
 	handleMatrixSystemInputSomeRanks(argc, argv, A, trans, wells, rhs, DR, cc, rank==0);
 	DR.dict[5] = "2"; //Zoltan debug level
 	if (rank == 0) {std::cout << "Reading Matrices complete"<< std::endl;}
-	
-	int N;
-	if (rank == 0)
-	    N = A.N();
-	cc.broadcast(&N, 1, 0);
 
-	std::vector<int> row_size(N);
-	storeRowSizeFromRoot(A, row_size, cc);
+	mpivec = partAndDistAfterRead(A, rhs, trans, wells, A_loc, rhs_loc,
+				      DR, comm, parComm, cc, partVec, gro, usePartVec);
 
-	//partition matrix
-	mpivec.resize(N, rank);
-	if (cc.size() > 1) {
-	    zoltanPartitionFunction(mpivec, trans, wells, cc, DR, row_size);
-	    //evalWellCommOnRoot(mpivec,wells,cc);
-	}
-	if (rank == 0) {std::cout << "Zoltan partition complete"<< std::endl;}
-	cc.barrier();
-	constructLocalFromRoot(A, A_loc_, N, rhs, rhs_loc, mpivec, comm, parComm, cc);
-	if (rank == 0) {std::cout << "Local Matrix construction complete"<< std::endl;}
-	parComm->remoteIndices().template rebuild<false>();
-	cc.barrier();
-	std::vector<int> rowType(A_loc_.N(), 0);
-	std::vector<int> comTab;
-	getIndexSetInfo(parComm, cc, comTab, rowType);
-	printComTabOnRoot(cc, comTab);
-
-	//remove off-diagonal NNZ on ghost rows.
-	if (cc.size() > 1)
-	    if (gro)
-		buildLocalMatrixFromLoc(A_loc_, A_loc, rowType);
-	    else
-		A_loc = A_loc_;
-	else
-	    A_loc = A_loc_;
-	printNumCells(cc, A_loc.nonzeroes(), 2);
     }
 
     else {
@@ -338,52 +362,11 @@ std::vector<int> readMatOnRootAndDist(std::string systemDir, Mat& A_loc, Vec& rh
 
 	DR.dict[5] = "2"; //Zoltan debug level
 	if (rank == 0) {std::cout << "Reading Matrices complete"<< std::endl;}
-	
-	int N;
-	if (rank == 0)
-	    N = A.N();
-	cc.broadcast(&N, 1, 0);
 
-	std::vector<int> row_size(N);
-	storeRowSizeFromRoot(A, row_size, cc);
-
-	//partition matrix
-	mpivec.resize(N, rank);
-	if (cc.size() > 1) {
-	    if (usePartVec)
-		mpivec = partVec;
-	    else
-		zoltanPartitionFunction(mpivec, trans, wells, cc, DR, row_size);
-	    //evalWellCommOnRoot(mpivec,wells,cc);
-	}
-	if (!usePartVec)
-	    if (rank == 0) {std::cout << "Zoltan partition complete"<< std::endl;}
-	cc.barrier();
-	constructLocalFromRoot(A, A_loc_, N, rhs, rhs_loc, mpivec, comm, parComm, cc);
-	if (rank == 0) {std::cout << "Local Matrix construction complete"<< std::endl;}
-	parComm->remoteIndices().template rebuild<false>();
-	cc.barrier();
-	std::vector<int> rowType(A_loc_.N(), 0);
-	std::vector<int> comTab;
-	getIndexSetInfo(parComm, cc, comTab, rowType, false, !usePartVec);
-	if (!usePartVec) {
-
-	    printComTabOnRoot(cc, comTab);
-	}
-	//remove off-diagonal NNZ on ghost rows.
-	if (cc.size() > 1)
-	    if (gro)
-		buildLocalMatrixFromLoc(A_loc_, A_loc, rowType);
-	    else
-		A_loc = A_loc_;
-	else
-	    A_loc = A_loc_;
-	if (!usePartVec)
-	    printNumCells(cc, A_loc.nonzeroes(), 2);
-	else
-	    if (rank == 0) {std::cout << std::endl;}
+	mpivec = partAndDistAfterRead(A, rhs, trans, wells, A_loc, rhs_loc,
+				      DR, comm, parComm, cc, partVec, gro, usePartVec);
     }
-
+	
     else {
 	if (rank == 0)
 	    readFromDir(A_loc,trans,wells,rhs_loc,systemDir,rank);

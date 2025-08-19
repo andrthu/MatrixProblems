@@ -143,7 +143,10 @@ void gen_dim_twoLevel(int argc, char** argv)
 	    rhs_coarse[b.index()] += (*b)[i] * bw[i];
 	}
     }
-       
+    
+    std::string fname = "rhs.vec";
+    std::ofstream filename(fname.c_str());
+    Dune::writeMatrixMarket(rhs_coarse,filename);
     amgHiaInfo(amgC, rhs_coarse, cc);
     
 }

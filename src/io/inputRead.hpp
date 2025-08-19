@@ -24,6 +24,8 @@
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/program_options.hpp>
+#include <boost/filesystem.hpp>
+
 
 template<class O>
 void readMatMarketObject(O& o,const char* fileName)
@@ -73,6 +75,18 @@ void readFromDir(Mat3& A, Mat1& trans, Mat1& wells, Vec& rhs, std::string dirNam
 	readMatMarketObject(rhs, r_name.data());
     }
 
+}
+
+template<class Mat1>
+void readTransMatOnly(Mat1& trans, std::string dirName, int rank)
+{
+    std::string d = dirName;
+    std::string t_name = d + std::string("/transAdj.mtx");
+
+    if (rank == 0) {
+	readMatMarketObject(trans, t_name.data());
+    }
+    
 }
 
 template<class Mat3, class Mat1, class Vec, class D>
@@ -316,4 +330,77 @@ void storeRowSizeFromRoot(Mat& A, std::vector<int>& row_size, const C& cc)
 	}
     }
     cc.broadcast(row_size.data(), row_size.size(), 0);
+}
+
+void readDirWithWellPrint(int argc, char** argv)
+{
+    auto systemDirs = parse_multiple_systems(argc, argv);
+    for (int i = 0; i < systemDirs.size(); ++i) {
+	if ( ! boost::algorithm::ends_with( systemDirs[i], ".json") ) {
+
+	    auto directoryPath =systemDirs[i].data();
+	    namespace fs = boost::filesystem;
+	    fs::path p(systemDirs[i]);
+	    if (fs::exists(p) && fs::is_directory(p)) {
+		std::cout << "Files in directory: " << directoryPath << std::endl;
+
+		for (fs::directory_iterator it(p); it != fs::directory_iterator(); ++it) {
+		    if (fs::is_regular_file(it->status())) {
+			std::cout << "  - " << it->path().filename().string() << std::endl;
+		    }
+		}
+	    }
+	}
+    }
+}
+
+template<class Mat, class Mat1, class Vec>
+void readDirWithWell(int argc, char** argv, Mat& A, Mat1& trans, Mat1& wells, Vec& rhs, int rank, bool readWT)
+{
+    auto systemDirs = parse_multiple_systems(argc, argv);
+    for (int i = 0; i < systemDirs.size(); ++i) {
+	if ( ! boost::algorithm::ends_with( systemDirs[i], ".json") ) {
+
+	    auto directoryPath = systemDirs[i];
+	    namespace fs = boost::filesystem;
+	    fs::path p(systemDirs[i]);
+	    if (fs::exists(p) && fs::is_directory(p)) {
+		std::cout << "Files in directory: " << directoryPath << std::endl;
+
+		for (fs::directory_iterator it(p); it != fs::directory_iterator(); ++it) {
+		    if (fs::is_regular_file(it->status())) {
+
+			if (rank == 0) {
+			    auto fname = it->path().filename().string();
+			    std::string A_name = std::string("BlackoilMatrix.mtx");
+			    std::string t_name = std::string("transAdj.mtx");
+			    std::string w_name = std::string("wellAdj.mtx");
+			    std::string r_name = std::string("BlackoilRHS.vec");
+			    std::string s_help = std::string("/");
+
+			    if (fname == A_name) {
+				std::string fn = directoryPath + s_help + A_name;
+				readMatMarketObject(A, fn);
+			    }
+
+			    if (fname == t_name) {
+				std::string fn = directoryPath + s_help + t_name;
+				readMatMarketObject(trans, fn);
+			    }
+
+			    if (fname == w_name) {
+				std::string fn = directoryPath + s_help + w_name;
+				readMatMarketObject(wells, fn);
+			    }
+
+			    if (fname == r_name) {
+				std::string fn = directoryPath + s_help + r_name;
+				readMatMarketObject(rhs, fn);
+			    }
+			}
+		    }
+		}
+	    }
+	}
+    }
 }

@@ -95,6 +95,42 @@ add_executable("hirTest1dim"
   generalDim/jsonSolveGeneral.hpp
   generalDim/hirTest.hpp)
 
+add_executable("listTransInfo"
+  listTransInfo.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/jsonSolveGeneral.hpp
+  generalDim/listTransInfo.hpp)
+
+add_executable("listTransInfoCo2"
+  listTransInfoCo2.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/jsonSolveGeneral.hpp
+  generalDim/listTransInfo.hpp)
+
 
 add_executable("multJsonSolve" 
   multJsonSolve.cpp
@@ -179,6 +215,8 @@ set(opm_dep
   singleHierarchyMultJsonSolve
   singleHierarchyMultJsonSolveCO2
   eclipseIO
+  listTransInfo
+  listTransInfoCo2
   )
 
 
@@ -192,5 +230,6 @@ foreach(exe ${opm_dep})
   target_link_libraries(${exe}  ${opm-common_LIBRARIES} )
 
   target_link_libraries(${exe} ${BOOST_LIBRARYDIR}/libboost_program_options.so )
+  target_link_libraries(${exe} ${BOOST_LIBRARYDIR}/libboost_filesystem.so )
   
 endforeach()

@@ -92,7 +92,7 @@ void jacobiS(Mat& S, double w)
     }
     
 }
-
+    
 template<class Mat, class Vec>
 void gen_dim_hirTest(int argc, char** argv)
 {
@@ -120,6 +120,8 @@ void gen_dim_hirTest(int argc, char** argv)
     DictRead DR;
     Comm comm(cc);
     std::shared_ptr<Comm> parComm(new(Comm));
+
+    readDirWithWellPrint(argc, argv);
     readMatOnRootAndDist(argc, argv, A_loc, rhs_loc, DR, comm, parComm, cc); // in partition/overlapCreation.hpp
 
     //findZeroDiag(A_loc, rhs_loc);
