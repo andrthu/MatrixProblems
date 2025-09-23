@@ -164,9 +164,18 @@ void gen_dim_list_trans_info(int argc, char** argv)
 	    DR.dict[12] = systemDirs[i];
 	}
 	else {
-	    Mat trans;
+	    Mat trans, wells;
 
 	    readTransMatOnly(trans, systemDirs[i], rank);
+	    readWellMatOnly(wells, systemDirs[i], rank);
+	    
+	    std::vector<int> part;
+	    std::vector<int> rs(trans.N()); 
+	    storeRowSizeFromRoot(trans, rs, cc);
+	    part.resize(trans.N(), rank);
+	    
+	    zoltanPartitionFunction(part, trans, wells, cc, DR, rs, 10);
+	    
 	    mats.push_back(trans);
 
 	    Mat3 A_loc;
@@ -189,11 +198,20 @@ void gen_dim_list_trans_info(int argc, char** argv)
 	auto sp = sps[i];
 	auto rhs_ = rhs[i];
 	
-	std::vector<double> W = {-1, 0.00001, 0.0001, 0.001, 0.002, 0.005, 0.01, 0.05, 0.1};
+	std::vector<double> W = {-1, 0.00001, 0.00002, 0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.05, 0.1};
 
 	if (block_size == 2) {
-	    W = {-1, 0.000001, 0.00001, 0.0001, 0.0002, 0.0005, 0.001, 0.005};
+	    W = {-1, 0.000001, 0.000002, 0.000005, 0.00001, 0.00002, 0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.005};
+	    
+	} else {
+
+	    if (t.N() > 74431){
+
+		W = {-1, 0.00001, 0.00002, 0.00003, 0.00004, 0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.01};
+	    }
+
 	}
+
 	for (double w : W) {
 	    removeSmallTransNNZ(A_, M, t, max, w);
 
@@ -204,7 +222,7 @@ void gen_dim_list_trans_info(int argc, char** argv)
 	    std::string use_ilu("ILU");
 	    auto ilu_help = Opm::convertString2Milu(use_ilu);
 
-	    double tol = 0.05;
+	    double tol = 0.005;
 	    if (block_size == 2) {
 		tol = 0.005;
 	    }
@@ -218,7 +236,7 @@ void gen_dim_list_trans_info(int argc, char** argv)
 	    Vec rhsC(rhs_);
 	    bicg.apply(x, rhsC, statistics);
 
-	    std::cout << w<< " " << statistics.iterations << " " << statistics.elapsed << " "
+	    std::cout << "Solve "<< w<< " " << statistics.iterations << " " << statistics.elapsed << " "
 		      << statistics.elapsed/statistics.iterations<< " "<< rr << " "<< rr2 << std::endl;
 	}
     }

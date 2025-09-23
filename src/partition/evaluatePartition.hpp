@@ -256,3 +256,61 @@ void evalWellCommOnRoot(const std::vector<int>& part, const M& wells, const C& c
 	}
     }
 }
+
+template<class Mat> 
+void serialPartEval(const Mat& t, const Mat& w, std::vector<int> part, int np)
+{
+    std::vector<int> cells(np, 0);
+
+    int N = part.size();
+    for (int i = 0; i < N; ++i)
+	cells[part[i]]++;
+
+    double imbal = 0;
+    for (int p = 0; p < np; p++ ) {
+
+	double pbal = ((double) np*cells[p])/N;
+	if (pbal>imbal)
+	    imbal= pbal;
+    }
+    std::cout << "Load imbalance: " << imbal<< std::endl;
+
+
+    std::vector<std::vector<int>> comtab;
+
+    for (int p = 0; p < np; p++ ) {
+
+	comtab.push_back( std::vector<int>(np,0) );
+    }
+    
+    int cut = 0;
+    for (auto row = t.begin(); row != t.end(); ++row) {
+
+	int idx = row.index();
+	int rpart = part[idx];
+	auto col = row->begin();
+	for (; col != row->end(); ++col) {
+
+	    int nabId = col.index();
+	    int nabPart = part[nabId];
+
+	    if(nabPart != rpart) {
+		
+		comtab[rpart][nabPart]++;
+		cut++;
+	    }
+	}
+    }
+
+    if (np < 100) {
+	for (int p = 0; p < np; p++ ) {
+	    std::cout << "ComTab rank " << p <<": ";
+	    for (int n = 0; n < np; n++ ) {
+		std::cout << comtab[p][n] << " ";
+	    }
+	    std::cout << std::endl;
+	}
+    }
+    std::cout << "Cut: " << cut << std::endl;
+    std::cout << std::endl;
+}

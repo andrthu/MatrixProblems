@@ -89,6 +89,18 @@ void readTransMatOnly(Mat1& trans, std::string dirName, int rank)
     
 }
 
+template<class Mat1>
+void readWellMatOnly(Mat1& well, std::string dirName, int rank)
+{
+    std::string d = dirName;
+    std::string t_name = d + std::string("/wellAdj.mtx");
+
+    if (rank == 0) {
+	readMatMarketObject(well, t_name.data());
+    }
+    
+}
+
 template<class Mat3, class Mat1, class Vec, class D>
 void handleMatrixSystemInput(int argc, char** argv, Mat3& A, Mat1& trans, 
 			     Mat1& wells, Vec& rhs, D& DR, int rank)

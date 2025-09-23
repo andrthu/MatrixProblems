@@ -131,6 +131,41 @@ add_executable("listTransInfoCo2"
   generalDim/jsonSolveGeneral.hpp
   generalDim/listTransInfo.hpp)
 
+add_executable("zoltanInfo"
+  zoltanInfo.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/jsonSolveGeneral.hpp
+  generalDim/zoltanInfo.hpp)
+
+add_executable("zoltanInfoCo2"
+  zoltanInfoCo2.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/jsonSolveGeneral.hpp
+  generalDim/zoltanInfo.hpp)
 
 add_executable("multJsonSolve" 
   multJsonSolve.cpp
@@ -217,6 +252,8 @@ set(opm_dep
   eclipseIO
   listTransInfo
   listTransInfoCo2
+  zoltanInfo
+  zoltanInfoCo2
   )
 
 

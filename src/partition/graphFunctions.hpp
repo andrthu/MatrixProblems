@@ -23,6 +23,7 @@
 #endif // OPM_GRAPHFUNCTIONS_HEADER_INCLUDED
 
 #include <algorithm>
+#include <map>
 
 template <class Mat>
 class TransWellGraph
@@ -32,6 +33,7 @@ public:
     TransWellGraph(Mat T, Mat W, std::vector<int> rs, int useNormal, double logBase, bool isRoot)
     {
 	if (isRoot) {
+	    wgtType_ = useNormal;
 	    trans = T;
 	    wells = W;
 	    row_size = rs;
@@ -157,12 +159,108 @@ public:
 	edgeWgt_ = catWgt;
     }
 
+    template<class R>
+    void dps(R row, int v, int master, double w, std::vector<bool>& visited,
+	     std::vector<int>& f2c, std::vector<int>& cnode, std::vector<std::tuple<int,int,double> >& edges) {
+
+	visited[v] = true;
+	f2c[v] = master;
+	cnode.push_back(v);
+	
+	auto col = row.begin();
+	for (; col != row.end(); ++col) {
+	    int nab = col.index();
+
+	    if (trans[v][nab] > w) {
+		if (!visited[nab]) {
+		    dps(trans[nab],nab,master,w,visited,f2c,cnode,edges);
+		} else {
+		    if (f2c[v]!=f2c[nab]) {
+			std::cout << "Problem " << nab << " " << v <<
+			    " " << f2c[v] << " " << f2c[nab] <<std::endl; 
+		    }
+		}
+	    }
+	}
+	col = row.begin();
+	for (; col != row.end(); ++col) {
+	    int nab = col.index();
+	    if (f2c[v]!=f2c[nab]) {
+		edges.push_back({v,nab,trans[v][nab]});
+	    }
+	}
+    }
+
+    void createCoarseEdges(std::vector<std::vector<std::tuple<int,int,double> >> gEdges,
+			   std::vector<int> f2c) {
+
+	//std::vector<std::map<int, double> > cedges;
+
+	for (std::vector<std::tuple<int,int,double> > es : gEdges ) {
+
+	    std::map<int, double> ce;
+
+	    for (std::tuple<int,int,double> fe : es) {
+
+		int coarseNab = f2c[std::get<1>(fe)];
+		double weight = wgtType_ == 0 ? 1.0 : std::get<2>(fe);
+		if ( ce.count(coarseNab) == 1 ) {
+		    ce[coarseNab] += weight;
+		} else {
+		    ce.insert({coarseNab,weight});
+		}
+	    }
+	    cedges.push_back(ce);
+	}
+    }
+    
+    void coarsenGraph(double w) {
+
+	int N = trans.N();
+	std::vector<bool> visited(N, false);
+
+	f2c.resize(N, 0);
+	std::vector<int> c2f;
+
+	int biggest = 0;
+	int single = 0;
+
+	std::vector<std::vector<std::tuple<int,int,double> >> gEdges;
+	int newV = 0;
+	for (int v = 0; v < N; ++v) {
+
+	    if (!visited[v]) {
+
+		//f2c[v] = v;
+		c2f.push_back(v);
+		std::vector<int> cnode;
+		std::vector<std::tuple<int,int,double> > edges;		
+		dps(trans[v],v,newV,w,visited,f2c,cnode,edges);
+		newV++;
+		if (cnode.size() > biggest)
+		    biggest = cnode.size();
+		if (cnode.size() == 1)
+		    single++;
+		gEdges.push_back(edges);
+		courseNodes_.push_back(cnode);
+	    }
+	}
+	createCoarseEdges(gEdges,f2c);
+	std::cout << "Coarse graph size: " << c2f.size()<< " "<< biggest<< " "<< single<< " " << N << std::endl;
+    }
+
     Mat trans;
     Mat wells;
     Mat edgeWgt_;
     double minLogWgt;
     double scaler_;
     double base_;
+    int wgtType_;
+
+    
+    std::vector<std::vector<int>> courseNodes_;
+    std::vector<std::map<int, double> > cedges;
+    std::vector<int> f2c;
 
     std::vector<double> trans_bound_;
     std::vector<int> row_size;
@@ -228,6 +326,20 @@ int getMatNumCells(void* graphPointer, int* err)
     return transMat.N();
 }
 
+
+// Num objects 2 Coarse graph
+int getMatNumCellsCoarse(void* graphPointer, int* err)
+{
+    typedef Dune::BCRSMatrix<Dune::FieldMatrix<double,1,1>> Mat;
+    typedef TransWellGraph<Mat> Graph;
+
+    const Graph& graph = *static_cast<const Graph*>(graphPointer);
+    const std::vector<std::vector<int>>& nodes = graph.courseNodes_;
+
+    *err = ZOLTAN_OK;
+    return nodes.size();
+}
+
 // Object List 
 void getMatVertexList(void* graphPointer, int numGlobalIdEntries,
 		      int numLocalIdEntries, ZOLTAN_ID_PTR gids,
@@ -253,6 +365,33 @@ void getMatVertexList(void* graphPointer, int numGlobalIdEntries,
 	    objWgts[2 * idx ]     = 1;
 	    objWgts[2 * idx + 1 ] = rs[idx];
 	}
+    }
+
+    *err = ZOLTAN_OK;
+}
+
+// Object List 2 coarse graph
+void getMatVertexListCoarse(void* graphPointer, int numGlobalIdEntries,
+		      int numLocalIdEntries, ZOLTAN_ID_PTR gids,
+		      ZOLTAN_ID_PTR lids, int wgtDim,
+		      float *objWgts, int *err)
+{
+    //(void) wgtDim; (void) objWgts;
+
+    typedef Dune::BCRSMatrix<Dune::FieldMatrix<double,1,1>> Mat;    
+    typedef TransWellGraph<Mat> Graph;
+
+    const Graph& graph = *static_cast<const Graph*>(graphPointer);
+    const std::vector<std::vector<int>>& nodes = graph.courseNodes_;
+    
+
+    for (int idx = 0; idx < nodes.size(); ++idx)
+    {
+	//std::cout << "in getMatVertexListCoarse idx: " << idx << std::endl;
+        gids[idx] = idx;
+        lids[idx] = idx;
+	if (wgtDim == 1)
+	    objWgts[idx] = nodes[idx].size();
     }
 
     *err = ZOLTAN_OK;
@@ -318,6 +457,29 @@ void getMatWellNumEdgesList(void *graphPointer, int sizeGID, int sizeLID,
 	}
 
 	numEdges[trow.index()] = edges;
+    }
+    
+    *err = ZOLTAN_OK;
+}
+
+// Num edges 3 coarse graph
+void getMatNumEdgesListCoarse(void *graphPointer, int sizeGID, int sizeLID,
+			      int numCells, ZOLTAN_ID_PTR globalID,
+			      ZOLTAN_ID_PTR localID, int *numEdges, int *err)
+{
+    (void) globalID;
+    typedef Dune::BCRSMatrix<Dune::FieldMatrix<double,1,1>> Mat;
+    typedef TransWellGraph<Mat> Graph;
+
+    const Graph& graph = *static_cast<const Graph*>(graphPointer);
+    const std::vector<std::map<int, double> >& edges = graph.cedges;
+    
+
+    for (int idx = 0; idx < edges.size(); ++idx)
+    {
+
+	//std::cout << "in getMatNumEdgesListCoarse idx: " << idx << " "<< edges.size() << std::endl;
+	numEdges[idx] = edges[idx].size();
     }
     
     *err = ZOLTAN_OK;
@@ -482,9 +644,42 @@ void getWellWeightMatEdgeList(void *graphPointer, int sizeGID, int sizeLID,
     }
 }
 
+// Edge List 5, coarse graph
+void getWeightMatEdgeListCoarse(void *graphPointer, int sizeGID, int sizeLID,
+				int numCells, ZOLTAN_ID_PTR globalID, 
+				ZOLTAN_ID_PTR localID, int *numEdges,
+				ZOLTAN_ID_PTR nborGID, int *nborProc,
+				int wgtDim, float *ewgts, int *err)
+{
+    (void) wgtDim; (void) globalID; (void) numEdges;
+    
+    typedef Dune::BCRSMatrix<Dune::FieldMatrix<double,1,1>> Mat;
+    typedef TransWellGraph<Mat> Graph;
+    
+
+    const Graph& graph = *static_cast<const Graph*>(graphPointer);
+    const std::vector<std::map<int, double> >& edges = graph.cedges;
+
+    int idx = 0;
+    
+    for (const auto& node : edges)
+    {
+	for (const auto& edge : node) {
+	    //std::cout << "in getWeightMatEdgeListCoarse idx: " << idx << " "<< edge.first << std::endl;
+	    nborGID[idx] = edge.first;
+	    ewgts[idx++] = edge.second;
+	}
+    }
+    for ( int i = 0; i < idx; ++i )
+    {
+        nborProc[i] = 0;
+    }
+}
+
 template<class G>
 void setMatZoltanGraphFunctions(Zoltan_Struct *zz, const G& graph,
-				bool pretendNull, bool weights, bool wells)
+				bool pretendNull, bool weights,
+				bool wells, bool coarse)
 {
     G *graphPointer = const_cast<G*>(&graph);
     if ( pretendNull )
@@ -496,31 +691,40 @@ void setMatZoltanGraphFunctions(Zoltan_Struct *zz, const G& graph,
     }
     else
     {
-        Zoltan_Set_Num_Obj_Fn(zz, getMatNumCells, graphPointer);
-        Zoltan_Set_Obj_List_Fn(zz, getMatVertexList, graphPointer);
-	if ( wells )
-	{
-	    Zoltan_Set_Num_Edges_Multi_Fn(zz, getMatWellNumEdgesList, graphPointer);
-	    
-	    if ( weights )
-		Zoltan_Set_Edge_List_Multi_Fn(zz, getWellWeightMatEdgeList, graphPointer);
-	    else
-		Zoltan_Set_Edge_List_Multi_Fn(zz, getWellMatEdgeList, graphPointer);
+	if (coarse) {
+	    Zoltan_Set_Num_Obj_Fn(zz, getMatNumCellsCoarse, graphPointer);
+	    Zoltan_Set_Obj_List_Fn(zz, getMatVertexListCoarse, graphPointer);
+	    Zoltan_Set_Num_Edges_Multi_Fn(zz, getMatNumEdgesListCoarse, graphPointer);
+	    Zoltan_Set_Edge_List_Multi_Fn(zz, getWeightMatEdgeListCoarse, graphPointer);
+
 	}
-	else 
-	{
-	    Zoltan_Set_Num_Edges_Multi_Fn(zz, getMatNumEdgesList, graphPointer);
-	    if ( weights )
-		Zoltan_Set_Edge_List_Multi_Fn(zz, getWeightMatEdgeList, graphPointer);
-	    else
-		Zoltan_Set_Edge_List_Multi_Fn(zz, getMatEdgeList, graphPointer);
+	else {
+	    Zoltan_Set_Num_Obj_Fn(zz, getMatNumCells, graphPointer);
+	    Zoltan_Set_Obj_List_Fn(zz, getMatVertexList, graphPointer);
+	    if ( wells )
+	    {
+		Zoltan_Set_Num_Edges_Multi_Fn(zz, getMatWellNumEdgesList, graphPointer);
+	    
+		if ( weights )
+		    Zoltan_Set_Edge_List_Multi_Fn(zz, getWellWeightMatEdgeList, graphPointer);
+		else
+		Zoltan_Set_Edge_List_Multi_Fn(zz, getWellMatEdgeList, graphPointer);
+	    }
+	    else 
+	    {
+		Zoltan_Set_Num_Edges_Multi_Fn(zz, getMatNumEdgesList, graphPointer);
+		if ( weights )
+		    Zoltan_Set_Edge_List_Multi_Fn(zz, getWeightMatEdgeList, graphPointer);
+		else
+		    Zoltan_Set_Edge_List_Multi_Fn(zz, getMatEdgeList, graphPointer);
+	    }
 	}
     }
 }
 
 
 template<class Comm, class M, class D>
-void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm comm, D dr, std::vector<int>& row_size)
+void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm comm, D dr, std::vector<int>& row_size, int numGlobParts=-1, double coarsenGraph=-1)
 {
     int rank = comm.rank();
     
@@ -546,6 +750,7 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
     //Zoltan_Set_Param(zz,"PARMETIS_METHOD","PartKway");
     //Zoltan_Set_Param(zz,"PARMETIS_OUTPUT_LEVEL","2");
 
+    
     Zoltan_Set_Param(zz,"LB_APPROACH","PARTITION");
     Zoltan_Set_Param(zz,"NUM_GID_ENTRIES","1");
     Zoltan_Set_Param(zz,"NUM_LID_ENTRIES","1");
@@ -562,7 +767,13 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
     //Zoltan_Set_Param(zz,"PHG_COARSENING_NCANDIDATE",dr.dict[6].data());
     //Zoltan_Set_Param(zz,"PHG_COARSENING_METHOD",dr.dict[2].data()); 
     //Zoltan_Set_Param(zz,"PHG_REFINEMENT_LOOP_LIMIT",dr.dict[8].data()); 
-  
+
+    if (numGlobParts != -1) {
+	Zoltan_Set_Param(zz, "NUM_GLOBAL_PARTS", std::to_string(numGlobParts).c_str());
+	Zoltan_Set_Param(zz, "RETURN_LISTS", "PARTS");
+	Zoltan_Set_Param(zz,"DEBUG_LEVEL","0");
+    }
+    
     bool pretendNull = rank!=0;
     
     int wgtType = std::stoi(dr.dict[0]);
@@ -571,6 +782,7 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
     int objWgtMet = std::stoi(dr.dict[7]);
     bool useObjWeights = objWgtMet  > 0;
     double logBase = std::exp(std::stod(dr.dict[11]));    
+    bool partCoarseGraph = std::stoi(dr.dict[13]) == 1;
     
     if (useWeights || useWells)
 	Zoltan_Set_Param(zz,"EDGE_WEIGHT_DIM","1");
@@ -584,10 +796,19 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
     //twg.findMin();
     //twg.createLogWeights();
 
-    setMatZoltanGraphFunctions(zz, twg, pretendNull, useWeights, useWells);
+    if (coarsenGraph != -1) {
+	twg.coarsenGraph(coarsenGraph);
+	if (partCoarseGraph)
+	    Zoltan_Set_Param(zz,"OBJ_WEIGHT_DIM","1");
+    }
+    else
+	partCoarseGraph = false;
+    
+    setMatZoltanGraphFunctions(zz, twg, pretendNull, useWeights, useWells, partCoarseGraph);
+
 
     rc = Zoltan_LB_Partition(zz,
-			     &changes,
+			     &changes, /* 1 if partitioning was changed, 0 otherwise */
 			     &numGidEntries,
 			     &numLidEntries,
 			     &numImport,
@@ -595,49 +816,68 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
 			     &importLocalGids,
 			     &importProcs,
 			     &importToPart,
-			     &numExport,
-			     &exportGlobalGids,
-			     &exportLocalGids,
-			     &exportProcs,
-			     &exportToPart);
+			     &numExport, /* Number of vertices I must send to other processes*/
+			     &exportGlobalGids, /* Global IDs of the vertices I must send */
+			     &exportLocalGids, /* Local IDs of the vertices I must send */
+			     &exportProcs, /* Process to which I send each of the vertices */
+			     &exportToPart); /* Partition to which each vertex will belong */
   
     if (rc!=ZOLTAN_OK)
 	std::cout << "Error occured" << std::endl;
 
+    
     for (int i = 0; i < numExport; ++i)
     {
 	mpirank[exportLocalGids[i]] = exportProcs[i];
     }
 
-    std::vector<int> rankIsZero(comm.size(), 0);
+    if (numGlobParts != -1) {
 
-    for (int i = 0; i < mpirank.size(); ++i) {
-	
-	rankIsZero[mpirank[i]] +=1;
-    }
+	if (partCoarseGraph) {
 
-    bool zeroRankPresent = false;
-    for (int r = 0; r < rankIsZero.size(); ++r) {
-	if (rankIsZero[r] == 0) {
-	    zeroRankPresent = true;
+	    for (int i = 0; i < mpirank.size(); ++i) {
+		mpirank[i] = exportToPart[twg.f2c[i]];
+	    }
+	    
+	} else {
+	    for (int i = 0; i < mpirank.size(); ++i) {
+		mpirank[i] = exportToPart[i];
+	    }
 	}
-    }
+	
+    } else {
     
     
-    if (rank ==0) {
+	std::vector<int> rankIsZero(comm.size(), 0);
 
+	for (int i = 0; i < mpirank.size(); ++i) {
+	
+	    rankIsZero[mpirank[i]] +=1;
+	}
+
+	bool zeroRankPresent = false;
 	for (int r = 0; r < rankIsZero.size(); ++r) {
-	    std::cout << r << ":" << rankIsZero[r]<<std::endl;
+	    if (rankIsZero[r] == 0) {
+		zeroRankPresent = true;
+	    }
 	}
-	std::cout <<std::endl;
-	
-	if (zeroRankPresent) {
-	    std::cout << "Zero partitions present: ";
+    
+    
+	if (rank ==0) {
+
 	    for (int r = 0; r < rankIsZero.size(); ++r) {
-		if (rankIsZero[r] == 0)
-		    std::cout << r << " ";
+		std::cout << r << ":" << rankIsZero[r]<<std::endl;
 	    }
 	    std::cout <<std::endl;
+	
+	    if (zeroRankPresent) {
+		std::cout << "Zero partitions present: ";
+		for (int r = 0; r < rankIsZero.size(); ++r) {
+		    if (rankIsZero[r] == 0)
+			std::cout << r << " ";
+		}
+		std::cout <<std::endl;
+	    }
 	}
     }
     
