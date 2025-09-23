@@ -33,4 +33,4 @@ Needed hacks in modules for compileing (Only to remember)
 =========================================================
 1.) Remove SPQR dep in dune FindSuiteSparse.cmake
 2.) Add /suitesparse to suitesparse include path in modulefile
-3.) Use set(CMAKE_MODULE_PATH /home/andreast/modules/flow/202309a/ss/master2024.oct/share/opm/cmake/Modules) in src/CMakeLists.txt to use OPM FindSuiteSparse.cmake
+3.) Use set(CMAKE_MODULE_PATH /home/andreast/modules/flow/202309a/nov2024Alf/share/opm/cmake/Modules) in src/CMakeLists.txt to use OPM FindSuiteSparse.cmake
