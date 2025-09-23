@@ -1,4 +1,4 @@
-set(CMAKE_MODULE_PATH /home/andreast/modules/flow/202309a/ss/master2024.oct/share/opm/cmake/Modules)
+set(CMAKE_MODULE_PATH /home/andreast/modules/flow/202309a/nov2024Alf/share/opm/cmake/Modules)
 #cmake_policy(SET CMP0028 OLD)
 
 cmake_policy(SET CMP0060 NEW)
