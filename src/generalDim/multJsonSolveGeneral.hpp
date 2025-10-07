@@ -26,7 +26,7 @@ template<class Mat, class Vec>
 void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
 {
     typedef Dune::MPIHelper::MPICommunicator MPICommunicator;
-    typedef Dune::CollectiveCommunication<MPICommunicator> CollectiveCommunication;
+    typedef Dune::Communication<MPICommunicator> CollectiveCommunication;
     typedef Dune::BiCGSTABSolver<Vec> Solver;
     typedef Dune::InverseOperatorResult Stat;
     
