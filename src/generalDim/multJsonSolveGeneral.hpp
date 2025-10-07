@@ -44,7 +44,8 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
 
     std::vector<Mat> systems;
     std::vector<Vec> rhs;
-
+    std::vector<Vec> wgts;
+    
     std::vector<ScalarProduct> sps;
     
     DictRead DR;
@@ -58,11 +59,12 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
 	}
 	else {
 	    Mat A_loc;
-	    Vec rhs_loc;
-	    mpiVec = readMatOnRootAndDist(systemDirs[i], A_loc, rhs_loc, DR, comm, parComm, cc, mpiVec, true, i!=0);
+	    Vec rhs_loc, impes;
+	    mpiVec = readMatOnRootAndDistWithWeight(systemDirs[i], A_loc, rhs_loc, impes, DR, comm, parComm, cc, mpiVec, true, i!=0);
 
 	    systems.push_back(A_loc);
 	    rhs.push_back(rhs_loc);
+	    wgts.push_back(impes);
 	    sps.push_back(ScalarProduct(*parComm));
 	}
     }
@@ -89,9 +91,25 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
 	
 	std::function<Vec()> quasi;
 	auto Ai = systems[i];
-	quasi = [Ai, pidx]() {
-	    return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(Ai, pidx, false);
-	};
+	auto impesWgt = wgts[i];
+	if (pc_Type == "cpr") {
+
+	    std::string wgt_type = prm_json.get<std::string>("preconditioner.weight_type");
+
+	    if (wgt_type == "trueimpes") {
+		quasi = [impesWgt] () {return impesWgt;};
+	    } else {
+		quasi = [Ai, pidx]() {
+		    return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(Ai, pidx, false);
+		};
+	    }
+
+	} else {
+	    quasi = [Ai, pidx]() {
+		return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(Ai, pidx, false);
+	    };
+	}
+	
 
 	GLO glo(Ai, *parComm);
 	auto fs_json = std::make_unique<FlexibleSolverType>(glo, *parComm, prm_json, quasi, pidx);

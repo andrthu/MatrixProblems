@@ -45,6 +45,7 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
     std::vector<Mat> systems;
     std::vector<Vec> rhs;
+    std::vector<Vec> wgts;
 
     std::vector<ScalarProduct> sps;
     
@@ -59,12 +60,13 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 	}
 	else {
 	    Mat A_loc;
-	    Vec rhs_loc;
+	    Vec rhs_loc, impes;
 
-	    mpiVec = readMatOnRootAndDist(systemDirs[i], A_loc, rhs_loc, DR, comm, parComm, cc, mpiVec, true, i!=0);
+	    mpiVec = readMatOnRootAndDistWithWeight(systemDirs[i], A_loc, rhs_loc, impes, DR, comm, parComm, cc, mpiVec, true, i!=0);
 
 	    systems.push_back(A_loc);
 	    rhs.push_back(rhs_loc);
+	    wgts.push_back(impes);
 	    sps.push_back(ScalarProduct(*parComm));
 	}
     }
@@ -84,22 +86,37 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
     
     Mat* matrix = &systems[0];
     auto glo = std::make_unique<GLO>(*matrix, *parComm);
-
-    // Create QuasiImpesWeights function used for CPR
+    Vec* impesWgt = &wgts[0];
+    
+    // Create QuasiImpesWeights or trueimpes from weights file function used for CPR
     int pidx = 1;
     if (block_size == 2) { pidx = 0; }
     std::function<Vec()> quasi;
-    quasi = [matrix, pidx]() {
+    if (pc_Type == "cpr") {
+
+	std::string wgt_type = prm_json.get<std::string>("preconditioner.weight_type");
+
+	if (wgt_type == "trueimpes") {
+	    quasi = [impesWgt] () {return *impesWgt;};
+	} else {
+	    quasi = [matrix, pidx]() {
+		return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(*matrix, pidx, false);
+	    };
+	}
+
+    } else {
+	quasi = [matrix, pidx]() {
 	    return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(*matrix, pidx, false);
 	};
+    }
 
     //Create linear solver. AMG hierarchy is set-up here based on the systems[0] matrix 
     auto fs_json = std::make_unique<FlexibleSolverType>(*glo, *parComm, prm_json, quasi, pidx);
-    
+
     for (int i = 0; i < systems.size(); ++i) {
 
 	Dune::InverseOperatorResult stat;
-	
+
 	Vec crhs(rhs[i]);
 	Vec x(crhs.size());
 	x=0;
