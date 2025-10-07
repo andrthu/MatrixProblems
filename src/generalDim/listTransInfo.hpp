@@ -132,7 +132,7 @@ void gen_dim_list_trans_info(int argc, char** argv)
   typedef Dune::BCRSMatrix<BlockMat1> Mat;
     
   typedef Dune::MPIHelper::MPICommunicator MPICommunicator;
-  typedef Dune::CollectiveCommunication<MPICommunicator> CollectiveCommunication;    
+  typedef Dune::Communication<MPICommunicator> CollectiveCommunication;    
 
   typedef Dune::BiCGSTABSolver<Vec> Solver;
   typedef Dune::InverseOperatorResult Stat;

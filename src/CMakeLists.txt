@@ -263,7 +263,6 @@ foreach(exe ${opm_dep})
 
   target_link_libraries(${exe}  ${opm-simulators_LIBRARIES} )
   target_link_libraries(${exe}  ${opm-grid_LIBRARIES} )
-  #target_link_libraries(${exe}  ${opm-material_LIBRARIES} )
   target_link_libraries(${exe}  ${opm-common_LIBRARIES} )
 
   target_link_libraries(${exe} ${BOOST_LIBRARYDIR}/libboost_program_options.so )

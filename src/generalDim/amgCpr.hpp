@@ -26,7 +26,7 @@ template<class Mat, class Vec>
 void gen_dim_amgCprTest(int argc, char** argv)
 {
     typedef Dune::MPIHelper::MPICommunicator MPICommunicator;
-    typedef Dune::CollectiveCommunication<MPICommunicator> CollectiveCommunication;
+    typedef Dune::Communication<MPICommunicator> CollectiveCommunication;
     typedef Dune::BiCGSTABSolver<Vec> Solver;
     typedef Dune::InverseOperatorResult Stat;
 

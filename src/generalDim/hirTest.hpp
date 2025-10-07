@@ -98,7 +98,7 @@ void gen_dim_hirTest(int argc, char** argv)
 {
   
     typedef Dune::MPIHelper::MPICommunicator MPICommunicator;
-    typedef Dune::CollectiveCommunication<MPICommunicator> CollectiveCommunication;
+    typedef Dune::Communication<MPICommunicator> CollectiveCommunication;
     typedef Dune::BiCGSTABSolver<Vec> Solver;
     typedef Dune::InverseOperatorResult Stat;
     

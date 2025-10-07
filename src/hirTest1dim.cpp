@@ -57,7 +57,6 @@
 #include <dune/istl/paamg/properties.hh>
 #include <dune/istl/paamg/indicescoarsener.hh>
 
-#include <dune/common/function.hh>
 #include <boost/property_tree/json_parser.hpp>
 
 #include <opm/simulators/linalg/ParallelOverlappingILU0.hpp>

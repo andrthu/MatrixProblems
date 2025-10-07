@@ -19,8 +19,8 @@ make -j 12
 Modules needed on ex3:
 =======================
 
-module load flow/202309a/2023.10
-module load cmake-3.22.3
+module load flow/202309a/gpu/gpuistl/hierTest-master2025.feb
+module load cmake/gcc/3.28.0
 
 How to add file:
 =================

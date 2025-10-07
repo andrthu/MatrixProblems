@@ -40,6 +40,8 @@
 /* Define to the revision of MatrixProblems */
 #define MATRIXPROBLEMS_VERSION_REVISION @MATRIXPROBLEMS_VERSION_REVISION@
 
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
+
 /* end MatrixProblems
    Everything below here will be overwritten
 */
