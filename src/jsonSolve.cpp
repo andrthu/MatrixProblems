@@ -48,7 +48,6 @@
 #include <dune/istl/paamg/amg.hh>
 #include <dune/istl/paamg/pinfo.hh>
 
-#define BOOST_BIND_GLOBAL_PLACEHOLDERS
 #include <boost/property_tree/json_parser.hpp>
 
 #include <opm/simulators/linalg/ParallelOverlappingILU0.hpp>

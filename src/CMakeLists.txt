@@ -10,16 +10,7 @@ find_package(opm-common CONFIG REQUIRED)
 find_package(opm-grid CONFIG REQUIRED)
 #find_package(METIS REQUIRED)
 find_package(ParMETIS REQUIRED)
-#add_library(METIS::METIS UNKNOWN IMPORTED)
-#set_target_properties(METIS::METIS PROPERTIES
-#  IMPORTED_LOCATION /cm/shared/ex3-modules/202309a/milanq/pkgs/metis-32-5.1.0/lib/libmetis.so
-#  INTERFACE_INCLUDE_DIRECTORIES /cm/shared/ex3-modules/202309a/milanq/pkgs/metis-32-5.1.0/include
-#  )##
-#add_library(ParMETIS::ParMETIS UNKNOWN IMPORTED)
-#set_target_properties(ParMETIS::ParMETIS PROPERTIES
-#    IMPORTED_LOCATION /cm/shared/ex3-modules/202309a/milanq/pkgs/parmetis-32-4.0.3/lib/libparmetis.so
-#    INTERFACE_INCLUDE_DIRECTORIES /cm/shared/ex3-modules/202309a/milanq/pkgs/parmetis-32-4.0.3/include
-#    )
+
 
 find_package(opm-simulators CONFIG REQUIRED)
 
@@ -149,7 +140,7 @@ foreach(exe ${opm_dep})
 
   target_link_libraries(${exe}  ${opm-simulators_LIBRARIES} )
   target_link_libraries(${exe}  ${opm-grid_LIBRARIES} )
-  #target_link_libraries(${exe}  ${opm-material_LIBRARIES} )
+
   target_link_libraries(${exe}  ${opm-common_LIBRARIES} )
 
   target_link_libraries(${exe} ${BOOST_LIBRARYDIR}/libboost_program_options.so )

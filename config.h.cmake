@@ -26,6 +26,9 @@
 /* Define to the version of this package. */
 #define PACKAGE_VERSION "@DUNE_MOD_VERSION@"
 
+/* Avoid stupid boost warnings. */
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
+
 /* end private */
 
 /* Define to the version of MatrixProblems */
