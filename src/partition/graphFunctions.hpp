@@ -204,10 +204,12 @@ public:
 
 		int coarseNab = f2c[std::get<1>(fe)];
 		double weight = wgtType_ == 0 ? 1.0 : std::get<2>(fe);
-		if ( ce.count(coarseNab) == 1 ) {
-		    ce[coarseNab] += weight;
-		} else {
-		    ce.insert({coarseNab,weight});
+		if (weight > 0) {
+		    if ( ce.count(coarseNab) == 1 ) {
+			ce[coarseNab] += weight;
+		    } else {
+			ce.insert({coarseNab,weight});
+		    }
 		}
 	    }
 	    cedges.push_back(ce);
@@ -245,7 +247,7 @@ public:
 		courseNodes_.push_back(cnode);
 	    }
 	}
-	createCoarseEdges(gEdges,f2c);
+	createCoarseEdges(gEdges, f2c);
 	std::cout << "Coarse graph size: " << c2f.size()<< " "<< biggest<< " "<< single<< " " << N << std::endl;
     }
 
