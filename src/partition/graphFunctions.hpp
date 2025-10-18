@@ -24,6 +24,17 @@
 
 #include <algorithm>
 #include <map>
+#include <queue>
+
+struct WgtIdx {
+
+    double wgt;
+    int idx;
+
+    bool operator<(const WgtIdx& other) const {
+	return wgt < other.wgt;
+    }
+};
 
 template <class Mat>
 class TransWellGraph
@@ -204,7 +215,7 @@ public:
 
 		int coarseNab = f2c[std::get<1>(fe)];
 		double weight = wgtType_ == 0 ? 1.0 : std::get<2>(fe);
-		if (weight > 0) {
+		if (std::get<2>(fe) > 0) {
 		    if ( ce.count(coarseNab) == 1 ) {
 			ce[coarseNab] += weight;
 		    } else {
@@ -249,6 +260,94 @@ public:
 	}
 	createCoarseEdges(gEdges, f2c);
 	std::cout << "Coarse graph size: " << c2f.size()<< " "<< biggest<< " "<< single<< " " << N << std::endl;
+    }
+
+    template<class R, class Q>
+    void dps(R row, Q q, int v, int master, double w, int mns, std::vector<bool>& visited,
+	     std::vector<int>& f2c, std::vector<int>& cnode,
+	     std::vector<std::tuple<int,int,double> >& edges) {
+
+	visited[v] = true;
+	f2c[v] = master;
+	cnode.push_back(v);
+
+	//int totSize = cnode.size() + q.size();
+	auto col = row.begin();
+	for (; col != row.end(); ++col) {
+	    int nab = col.index();
+
+	    if (trans[v][nab] > w) {
+		if (!visited[nab]) {
+		    q.push({trans[v][nab], nab});
+		} 
+	    }
+	}
+
+
+	if ( cnode.size() < mns ) {
+	    if (!q.empty()) {
+		auto strongCon = q.top();
+		int nab = strongCon.idx;
+		q.pop();
+		while (visited[nab] && !q.empty()) {
+		    strongCon = q.top();
+		    nab = strongCon.idx;
+		    q.pop();
+		}
+		if (!visited[nab])
+		    dps(trans[nab],q,nab,master,w,mns,visited,f2c,cnode,edges);
+		
+	    }
+	}
+	
+	col = row.begin();
+	for (; col != row.end(); ++col) {
+	    int nab = col.index();
+	    if (f2c[v]!=f2c[nab]) {
+		edges.push_back({v,nab,trans[v][nab]});
+	    }
+	}
+    }
+
+    void coarsenGraphMaxNodeSize(double w, int maxNodeSize) {
+
+	int N = trans.N();
+	std::vector<bool> visited(N, false);
+
+	f2c.resize(N, 0);
+	std::vector<int> c2f;
+
+	int biggest = 0;
+	int single = 0;
+	int msns = 0;
+
+	std::vector<std::vector<std::tuple<int,int,double> >> gEdges;
+	int newV = 0;
+	for (int v = 0; v < N; ++v) {
+
+	    if (!visited[v]) {
+
+		//std::cout << "start " << v<< std::endl;
+		//f2c[v] = v;
+		std::priority_queue<WgtIdx> q;
+		c2f.push_back(v);
+		std::vector<int> cnode;
+		std::vector<std::tuple<int,int,double> > edges;		
+		dps(trans[v],q,v,newV,w,maxNodeSize,visited,f2c,cnode,edges);
+		newV++;
+		if (cnode.size() > biggest)
+		    biggest = cnode.size();
+		if (cnode.size() == 1)
+		    single++;
+		if (cnode.size() == maxNodeSize)
+		    msns++;
+		gEdges.push_back(edges);
+		courseNodes_.push_back(cnode);
+		//std::cout << v <<" fin "<< cnode.size() << std::endl;
+	    }
+	}
+	createCoarseEdges(gEdges, f2c);
+	std::cout << "Coarse graph size(csize,biggest,numSingle,fsize,numBig): " << c2f.size()<< " "<< biggest<< " "<< single<< " " << N << " "<<  msns << std::endl;
     }
 
     Mat trans;
@@ -785,6 +884,7 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
     bool useObjWeights = objWgtMet  > 0;
     double logBase = std::exp(std::stod(dr.dict[11]));    
     bool partCoarseGraph = std::stoi(dr.dict[13]) == 1;
+    int maxNodeSize = std::stoi(dr.dict[15]);
     
     if (useWeights || useWells)
 	Zoltan_Set_Param(zz,"EDGE_WEIGHT_DIM","1");
@@ -799,7 +899,10 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
     //twg.createLogWeights();
 
     if (coarsenGraph != -1) {
-	twg.coarsenGraph(coarsenGraph);
+	if (maxNodeSize == -1)
+	    twg.coarsenGraph(coarsenGraph);
+	else
+	    twg.coarsenGraphMaxNodeSize(coarsenGraph, maxNodeSize);
 	if (partCoarseGraph)
 	    Zoltan_Set_Param(zz,"OBJ_WEIGHT_DIM","1");
     }

@@ -69,6 +69,7 @@ public:
     dict[12] = std::string("/global/D1/homes/andreast/linear_systems/patameters/cpr/fieldCase1.json");
     dict[13] = std::string("0");    //Partition coarse graph (1 = true)
     dict[14] = std::string("9");    //Wierd parameter related to coarse graph, now 9=9th percentile
+    dict[15] = std::string("-1");   //Maximum node size in coarse graph, -1 means no maximum
     /*
     dict[7]  = std::string("2");    //DEBUG_LEVEL
     dict[8]  = std::string("10");   //PHG_REFINEMENT_LOOP_LIMIT
