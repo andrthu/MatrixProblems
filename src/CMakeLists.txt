@@ -138,6 +138,27 @@ add_executable("wellJsonSolve"
   partition/flexibleSolverTimer.hpp
   generalDim/wellJsonSolveGeneral.hpp)
 
+add_executable("wellJsonSolveMultVersion" 
+  wellJsonSolveMultVersion.cpp
+  io/inputRead.hpp
+  io/readWells.hpp
+  io/standardWell.hpp
+  io/multiSegmentWell.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  solveParallel/operatorWithWell.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/wellJsonSolveGeneralMultVersion.hpp)
+
 add_executable("eclipseIO"
   eclipseIO.cpp
   )
@@ -150,6 +171,7 @@ set(opm_dep
   singleHierarchyMultJsonSolve
   singleHierarchyMultJsonSolveCO2
   wellJsonSolve
+  wellJsonSolveMultVersion
   eclipseIO
   )
 
