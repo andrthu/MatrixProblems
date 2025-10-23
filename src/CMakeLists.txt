@@ -8,7 +8,6 @@ cmake_policy(SET CMP0028 OLD)
 find_package(Zoltan CONFIG REQUIRED)
 find_package(opm-common CONFIG REQUIRED)
 find_package(opm-grid CONFIG REQUIRED)
-#find_package(METIS REQUIRED)
 find_package(ParMETIS REQUIRED)
 
 
@@ -118,6 +117,26 @@ add_executable("singleHierarchyMultJsonSolveCO2"
   partition/flexibleSolverTimer.hpp
   generalDim/singleHierarchymultJsonSolveGeneral.hpp)
 
+add_executable("wellJsonSolve" 
+  wellJsonSolve.cpp
+  io/inputRead.hpp
+  io/readWells.hpp
+  io/standardWell.hpp
+  io/multiSegmentWell.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  solveParallel/operatorWithWell.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/wellJsonSolveGeneral.hpp)
 
 add_executable("eclipseIO"
   eclipseIO.cpp
@@ -130,6 +149,7 @@ set(opm_dep
   multJsonSolveCO2
   singleHierarchyMultJsonSolve
   singleHierarchyMultJsonSolveCO2
+  wellJsonSolve
   eclipseIO
   )
 
