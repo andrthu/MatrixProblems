@@ -25,18 +25,22 @@
 template<class Mat, class Vec>
 void gen_dim_well_jsonSolve_mult(std::vector<std::string> systemDirs)
 {
-  typedef Dune::MPIHelper::MPICommunicator MPICommunicator;
+    using namespace Opm;
+    typedef Dune::MPIHelper::MPICommunicator MPICommunicator;
     typedef Dune::Communication<MPICommunicator> CollectiveCommunication;
     typedef Dune::BiCGSTABSolver<Vec> Solver;
     typedef Dune::InverseOperatorResult Stat;
     
     typedef Dune::OwnerOverlapCopyCommunication<int,int> Comm;
     typedef Dune::OverlappingSchwarzScalarProduct<Vec,Comm> ScalarProduct;
-    typedef GhostLastMatrixWellAdapter<Mat,Vec,Vec,StandardWell,MultiSegmentWell,Comm> GLO;
+    //typedef GhostLastMatrixWellAdapter<Mat,Vec,Vec,StandardWell,MultiSegmentWell,Comm> GLO;
+    typedef WellModelGhostLastMatrixAdapter<Mat,Vec,Vec,true> GLO;
     typedef Dune::OverlappingSchwarzOperator<Mat,Vec,Vec,Comm> Operator;
-    typedef Opm::ParallelOverlappingILU0<Mat,Vec,Vec,Comm> ILU;
+    typedef ParallelOverlappingILU0<Mat,Vec,Vec,Comm> ILU;
     typedef Dune::FlexibleSolver<GLO> FlexibleSolverType;
 
+
+    
     const auto block_size = Vec::block_type::dimension;
     
     CollectiveCommunication cc(MPI_COMM_WORLD);
@@ -67,7 +71,6 @@ void gen_dim_well_jsonSolve_mult(std::vector<std::string> systemDirs)
 	    mpiVec = readMatOnRootAndDistWithWeight(systemDirs[i], A_loc, rhs_loc, impes, DR, comm, parComm, cc, mpiVec, true, i!=0);
 
 	    readWellDir(systemDirs[i], wells, msWells);
-	    
 
 	    systems.push_back(A_loc);
 	    rhs.push_back(rhs_loc);
@@ -80,10 +83,10 @@ void gen_dim_well_jsonSolve_mult(std::vector<std::string> systemDirs)
 
     if (rank == 0) {std::cout << std::setprecision (15) << std::endl;}
 
-    Opm::FlowLinearSolverParameters flsp_json;
+    FlowLinearSolverParameters flsp_json;
     flsp_json.linsolver_ = DR.dict[12];
 
-    Opm::PropertyTree prm_json(flsp_json.linsolver_);
+    PropertyTree prm_json(flsp_json.linsolver_);
     std::string pc_Type = prm_json.get<std::string>("preconditioner.type");
     if (pc_Type == "cpr" || pc_Type == "cprw") {
 	prm_json.put("preconditioner.coarsesolver.preconditioner.verbosity", 10);
@@ -94,14 +97,17 @@ void gen_dim_well_jsonSolve_mult(std::vector<std::string> systemDirs)
     Mat* matrix = &systems[0];
     std::vector<StandardWell>* swells = &wellMod[0];
     std::vector<MultiSegmentWell>* mswells = &msWellMod[0];
-    auto glo = std::make_unique<GLO>(*matrix, *swells, *mswells, *parComm);
+    
+    typedef WellModelsFromFileOperator<Vec,Vec,StandardWell,MultiSegmentWell> WMO;
+    auto wmo = std::make_unique<WMO>(*swells, *mswells);
+    auto glo = std::make_unique<GLO>(*matrix, *wmo, matrix->N());
     Vec* impesWgt = &wgts[0];
     
     // Create QuasiImpesWeights or trueimpes from weights file function used for CPR
     int pidx = 1;
     if (block_size == 2) { pidx = 0; }
     std::function<Vec()> quasi;
-    if (pc_Type == "cpr") {
+    if (pc_Type == "cpr" || pc_Type == "cprw") {
 
 	std::string wgt_type = prm_json.get<std::string>("preconditioner.weight_type");
 
@@ -109,13 +115,13 @@ void gen_dim_well_jsonSolve_mult(std::vector<std::string> systemDirs)
 	    quasi = [impesWgt] () {return *impesWgt;};
 	} else {
 	    quasi = [matrix, pidx]() {
-		return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(*matrix, pidx, false);
+		return Amg::getQuasiImpesWeights<Mat, Vec>(*matrix, pidx, false);
 	    };
 	}
 
     } else {
 	quasi = [matrix, pidx]() {
-	    return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(*matrix, pidx, false);
+	    return Amg::getQuasiImpesWeights<Mat, Vec>(*matrix, pidx, false);
 	};
     }
 

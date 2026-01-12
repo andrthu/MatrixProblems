@@ -33,11 +33,12 @@ public:
     typedef Dune::FieldMatrix<double,4,4> BlockD;
     typedef Dune::BCRSMatrix<BlockOff> MatOff;
     typedef Dune::BCRSMatrix<BlockD> MatD;
-
+    typedef Dune::BCRSMatrix<Opm::MatrixBlock<double, 1, 1>> PressureMatrix;
+    
     typedef Dune::BlockVector<Dune::FieldVector<double,3>> Vec;
     typedef Dune::BlockVector<Dune::FieldVector<double,4>> WellVec;
     
-    MultiSegmentWell(MatOff B, MatOff C, MatD D, std::vector<int> well_cells)
+    MultiSegmentWell(const MatOff& B, const MatOff& C, const MatD&  D, const std::vector<int>& well_cells)
 	: B_(B),C_(C),D_(D),well_cells_(well_cells)
     {
 	Bx_.resize(D_.N());
@@ -80,7 +81,73 @@ public:
 	apply( x, scaleAddRes_ );
 	Ax.axpy( alpha, scaleAddRes_ );
     }
-    
+
+    const std::vector<int>& wellConnections() const {return well_cells_;}
+
+    void addWellPressureEquations(PressureMatrix& jacobian,
+				  const Vec& weights,
+				  const bool use_well_weights,
+				  int well_index,
+				  const int pressureVarIndex) const
+    {
+	const int number_cells = weights.size();
+	const int welldof_ind = number_cells + well_index;
+	
+	bool bhp_control = false;
+	const int seg_pressure_var_ind = 3;
+	if (!bhp_control) {
+	    for (std::size_t rowC = 0; rowC < C_.N(); ++rowC) {
+		for (auto colC = C_[rowC].begin(),
+			 endC = C_[rowC].end(); colC != endC; ++colC) {
+
+		    const auto row_index = well_cells_[colC.index()];
+		    const auto& bw = weights[row_index];
+		    double matel = 0.0;
+
+		    for (std::size_t i = 0; i< bw.size(); ++i) {
+			matel += bw[i]*(*colC)[seg_pressure_var_ind][i];
+		    }
+		    jacobian[row_index][welldof_ind] += matel;
+		}
+	    }
+	}
+	if (!bhp_control) {
+	    auto well_weight = weights[0];
+	    well_weight = 0.0;
+	    int num_perfs = 0;
+	    for (std::size_t rowB = 0; rowB < B_.N(); ++rowB) {
+		for (auto colB = B_[rowB].begin(),
+			 endB = B_[rowB].end(); colB != endB; ++colB) {
+		    const auto col_index = well_cells_[colB.index()];
+		    const auto& bw = weights[col_index];
+		    well_weight += bw;
+		    num_perfs += 1;
+		}
+	    }
+	    well_weight /= num_perfs;
+	    assert(num_perfs > 0);
+	
+
+	    double diag_ell = 0.0;
+	    for (std::size_t rowB = 0; rowB < B_.N(); ++rowB) {
+		const auto& bw = well_weight;
+		for (auto colB = B_[rowB].begin(),
+			 endB = B_[rowB].end(); colB != endB; ++colB) {
+		    const auto col_index = well_cells_[colB.index()];
+		    double matel = 0.0;
+		    for (std::size_t i = 0; i< bw.size(); ++i) {
+			matel += bw[i] *(*colB)[i][pressureVarIndex];
+		    }
+		    jacobian[welldof_ind][col_index] += matel;
+		    diag_ell -= matel;
+		}
+	    }
+	    jacobian[welldof_ind][welldof_ind] = diag_ell;
+	} else {
+	    jacobian[welldof_ind][welldof_ind] = 1.0;
+	}
+    }
+
 private:
     MatOff B_;
     MatOff C_;

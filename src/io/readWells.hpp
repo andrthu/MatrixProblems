@@ -170,6 +170,7 @@ void readWellDir(std::string dirName, std::vector<WellMod>& wellMods, std::vecto
 		WellMod wm(B,C,D,well_cells);
 		wellMods.push_back(wm);
 	    } else {
+		//std::cout << "well cells read: " << well_cells.size() << std::endl;
 		MSW msw(B,C,D,well_cells);
 		msWellMods.push_back(msw);
 	    }

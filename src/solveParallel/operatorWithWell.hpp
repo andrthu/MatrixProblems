@@ -33,7 +33,7 @@ public:
     typedef MSW MultiSegmentWellModel;
     typedef typename X::field_type field_type;
 
-
+    using PressureMatrix = Dune::BCRSMatrix<Dune::FieldMatrix<field_type, 1, 1>>;
     typedef C communication_type;
 
     Dune::SolverCategory::Category category() const override
@@ -101,6 +101,66 @@ public:
     virtual const matrix_type& getmat() const override { return *A_; }
 
     const communication_type& comm() { return comm_; }
+
+    int getNumberOfExtraEquations() const
+    {
+	return wells_.size() + mswells_.size();
+    }
+
+    void addWellPressureEquationsStruct(PressureMatrix& jacobian) const
+    {
+	int nw = getNumberOfExtraEquations();
+	int rdofs = A_->N();
+	
+
+	for(int i=0; i < nw; i++){
+	    int wdof = rdofs + i;
+	    jacobian.entry(wdof,wdof) = 1.0;
+	}
+
+	int wnum = 0;
+	for (auto & well : wells_) {
+
+	    auto wc = well.wellConnections();
+	    for(int perfcell : wc) {
+		int wdof = rdofs + wnum;
+		jacobian.entry(wdof,perfcell) = 0.0;
+		jacobian.entry(perfcell, wdof) = 0.0;
+	    }
+	    wnum++;
+	}
+
+	for (auto & mwell : mswells_) {
+
+	    auto wc = mwell.wellConnections();
+	    for(int perfcell : wc) {
+		int wdof = rdofs + wnum;
+		jacobian.entry(wdof,perfcell) = 0.0;
+		jacobian.entry(perfcell, wdof) = 0.0;
+	    }
+	    wnum++;
+	}
+    }
+    
+    void addWellPressureEquations(PressureMatrix& jacobian,
+				  const X& weights,
+				  const bool use_well_weights) const
+    {
+	int nw = getNumberOfExtraEquations();
+	int rdofs = A_->N();
+
+	for(int i=0; i < nw; i++){
+	    int wdof = rdofs + i;
+	    jacobian[wdof][wdof] = 1.0;
+	}
+	int widx = 0;
+	for (auto & well : wells_) {
+
+	    well.addWellPressureEquations(jacobian, weights, use_well_weights, widx, 1);
+	    widx++;
+	}
+    }
+    
 private:
     void ghostLastProject(Y& y) const
     {
@@ -152,3 +212,123 @@ namespace Dune {
 
     } // end namespace Amg
 } // end namespace Dune
+
+template <class X, class Y, class W, class MSW>
+class WellModelsFromFileOperator : public Opm::LinearOperatorExtra<X, Y>
+{
+public:
+    using Base = Opm::LinearOperatorExtra<X, Y>;
+    using field_type = typename Base::field_type;
+    using PressureMatrix = typename Base::PressureMatrix;
+
+    typedef W WellModel;
+    typedef MSW MultiSegmentWellModel;
+    
+    explicit WellModelsFromFileOperator(const std::vector<WellModel>& wells,
+					const std::vector<MultiSegmentWellModel>& mswells)
+	: wells_(wells), mswells_(mswells)
+    {}
+
+    void apply(const X& x, Y& y) const override
+    {
+	for (auto & well : wells_) {
+	    well.apply(x,y);
+	}
+	for (auto & mwell : mswells_) {
+	    mwell.apply(x,y);
+	}
+    }
+
+    void applyscaleadd(field_type alpha, const X& x, Y& y) const override
+    {
+	for (auto & well : wells_) {
+	    well.applyscaleadd(alpha, x, y);
+	}
+	for (auto & mwell : mswells_) {
+	    mwell.applyscaleadd(alpha, x, y);
+	}
+    }
+
+    Dune::SolverCategory::Category category() const override
+    {
+        return Dune::SolverCategory::sequential;
+    }
+
+    int getNumberOfExtraEquations() const override
+    {
+	return wells_.size() + mswells_.size();
+    }
+
+    void addWellPressureEquationsStruct(PressureMatrix& jacobian) const override
+    {
+	int nw = getNumberOfExtraEquations();
+	int rdofs = jacobian.N() - nw;
+
+	for(int i=0; i < nw; i++){
+
+	    int wdof = rdofs + i;
+	    //std::cout << "entry loop " << i << " "<< wdof << std::endl; 
+	    jacobian.entry(wdof,wdof) = 1.0;
+	}
+
+	
+	int wnum = 0;
+	for (auto & well : wells_) {
+
+	    auto wc = well.wellConnections();
+	    for(int perfcell : wc) {
+		int wdof = rdofs + wnum;
+		jacobian.entry(wdof,perfcell) = 0.0;
+		jacobian.entry(perfcell, wdof) = 0.0;
+	    }
+	    wnum++;
+	}
+	
+
+	for (int mwi = 0; mwi < mswells_.size(); ++mwi) {
+
+
+	    const std::vector<int>& mwc = mswells_[mwi].wellConnections();
+
+	    for(int perfcell : mswells_[mwi].wellConnections()) {
+		int wdof = rdofs + wnum;
+
+		jacobian.entry(wdof,perfcell) = 0.0;
+		jacobian.entry(perfcell, wdof) = 0.0;
+	    }
+	    wnum++;
+	}
+
+	//std::cout << "Dofs in jacobian: " << jacobian.N() << std::endl;
+    }
+    
+    void addWellPressureEquations(PressureMatrix& jacobian,
+				  const X& weights,
+				  const bool use_well_weights) const override
+    {
+	int nw = getNumberOfExtraEquations();
+	int rdofs =jacobian.N()-nw;
+
+	for(int i=0; i < nw; i++){
+	    int wdof = rdofs + i;
+	    jacobian[wdof][wdof] = 1.0;
+	}
+
+	int widx = 0;
+	for (auto & well : wells_) {
+
+	    well.addWellPressureEquations(jacobian, weights, use_well_weights, widx, 1);
+	    widx++;
+	}
+
+	for (auto & mwell : mswells_) {
+
+	    mwell.addWellPressureEquations(jacobian, weights, use_well_weights, widx, 1);
+	    widx++;
+	}
+    }
+    
+private:
+    const std::vector<WellModel>& wells_;
+    const std::vector<MultiSegmentWellModel>& mswells_;
+};

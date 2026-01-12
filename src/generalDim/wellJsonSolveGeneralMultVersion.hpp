@@ -32,7 +32,8 @@ void gen_dim_well_jsonSolve_mult_v2(std::vector<std::string> systemDirs)
     
     typedef Dune::OwnerOverlapCopyCommunication<int,int> Comm;
     typedef Dune::OverlappingSchwarzScalarProduct<Vec,Comm> ScalarProduct;
-    typedef GhostLastMatrixWellAdapter<Mat,Vec,Vec,StandardWell,MultiSegmentWell,Comm> GLO;
+    //typedef GhostLastMatrixWellAdapter<Mat,Vec,Vec,StandardWell,MultiSegmentWell,Comm> GLO;
+    typedef Opm::WellModelGhostLastMatrixAdapter<Mat,Vec,Vec,true> GLO;
     typedef Dune::OverlappingSchwarzOperator<Mat,Vec,Vec,Comm> Operator;
     typedef Opm::ParallelOverlappingILU0<Mat,Vec,Vec,Comm> ILU;
     typedef Dune::FlexibleSolver<GLO> FlexibleSolverType;
@@ -103,7 +104,7 @@ void gen_dim_well_jsonSolve_mult_v2(std::vector<std::string> systemDirs)
 	auto impesWgt = wgts[i];
 	std::vector<StandardWell> swells = wellMod[i];
 	std::vector<MultiSegmentWell> mswells = msWellMod[i];
-	if (pc_Type == "cpr") {
+	if (pc_Type == "cpr" || pc_Type == "cprw") {
 
 	    std::string wgt_type = prm_json.get<std::string>("preconditioner.weight_type");
 
@@ -122,8 +123,11 @@ void gen_dim_well_jsonSolve_mult_v2(std::vector<std::string> systemDirs)
 	}
 	
 
-	GLO glo (Ai, swells, mswells, *parComm);
-	auto fs_json = std::make_unique<FlexibleSolverType>(glo, *parComm, prm_json, quasi, pidx);
+	//GLO glo (Ai, swells, mswells, *parComm);
+	typedef WellModelsFromFileOperator<Vec,Vec,StandardWell,MultiSegmentWell> WMO;
+	auto wmo = std::make_unique<WMO>(swells, mswells);
+	auto glo = std::make_unique<GLO>(Ai, *wmo, Ai.N());
+	auto fs_json = std::make_unique<FlexibleSolverType>(*glo, *parComm, prm_json, quasi, pidx);
 
 	Vec crhs(rhs[i]);
 	Vec x(crhs.size());
