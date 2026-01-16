@@ -1,0 +1,41 @@
+MatrixProblems
+================
+
+This directory contains code for reading matrix-market-format matrices and 
+vectors and then solve the systems formed by these matrices and vectors. 
+
+
+How to compile:
+===============
+
+mkdir build;
+cd build;
+
+cmake -DBOOST_INCLUDEDIR=$BOOST_INCLUDEDIR -DBOOST_LIBRARYDIR=$BOOST_LIBRARYDIR -DBoost_NO_SYSTEM_PATHS=ON -DBoost_NO_BOOST_CMAKE=ON -DZOLTAN_INCLUDE_DIRS=$ZOLTAN_INCLUDEDIR -DSuiteSparse_INCLUDE_DIRS=$SUITESPARSE_ROOT/include -DSuiteSparse_LIBRARIES=$SUITESPARSE_ROOT/lib/libsuitesparseconfig.so -DSUITESPARSE_CONFIG_LIB=$SUITESPARSE_ROOT/lib/libsuitesparseconfig.so -DSUITESPARSE_INCLUDE_DIR=$SUITESPARSE_ROOT/include -DZOLTAN_LIBRARIES=$ZOLTAN_LIBRARYDIR/libzoltan.a -DMETIS_ROOT=$METIS_ROOT -DPARMETIS_INCLUDE_DIR=$PARMETIS_ROOT/include -DPARMETIS_LIBRARY=$PARMETIS_ROOT/lib/libparmetis.so -DCMAKE_CXX_FLAGS="-O2 -mavx -funroll-loops " ../;
+
+make -j #num-threads
+
+Dependencies:
+=======================
+
+
+This project depends on code from the OPM initiative reservoir simulator Flow (https://opm-project.org/). Currently suports only: Release 2024.10
+
+The following dependencies of flow are also needed:
+DUNE (Release 2.9.1+)
+Zoltan
+Suitesparse
+Parmetis
+Boost
+openmpi
+
+Copy missing header files to Flow instalation folder
+====================================================
+This project uses the following header files not included in the flow installation folder:
+opm/simulators/linalg/MILU.hpp
+opm/simulators/linalg/PreconditionerFactory_impl.hpp
+opm/simulators/linalg/PressureBhpTransferPolicy.hpp
+opm/simulators/linalg/PreconditionerFactoryGPUIncludeWrapper.hpp
+opm/simulators/utils/ParallelCommunication.hpp
+
+These files that can be found in the opm-simulators repo must be added to your $FLOW_ROOT/include directory.
