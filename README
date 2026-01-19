@@ -10,29 +10,32 @@ How to compile:
 
 mkdir build;
 cd build;
-cmake -DBOOST_INCLUDEDIR=$BOOST_INCLUDEDIR -DBOOST_LIBRARYDIR=$BOOST_LIBRARYDIR -DBoost_NO_SYSTEM_PATHS=ON -DBoost_NO_BOOST_CMAKE=ON -DZOLTAN_INCLUDE_DIRS=$ZOLTAN_INCLUDEDIR -DSuiteSparse_INCLUDE_DIRS=$SUITESPARSE_INCLUDEDIR -DSuiteSparse_ROOT=$SUITESPARSE_ROOT -DZOLTAN_LIBRARIES=$ZOLTAN_LIBRARYDIR/libzoltan.a -DMETIS_ROOT=$METIS_ROOT -DPARMETIS_ROOT=$PARMETIS_ROOT -DCMAKE_CXX_FLAGS="-O2 -mavx -funroll-loops " ../;
 
-make -j 12
+cmake -DBOOST_INCLUDEDIR=$BOOST_INCLUDEDIR -DBOOST_LIBRARYDIR=$BOOST_LIBRARYDIR -DBoost_NO_SYSTEM_PATHS=ON -DBoost_NO_BOOST_CMAKE=ON -DZOLTAN_INCLUDE_DIRS=$ZOLTAN_INCLUDEDIR -DSuiteSparse_INCLUDE_DIRS=$SUITESPARSE_ROOT/include -DSuiteSparse_LIBRARIES=$SUITESPARSE_ROOT/lib/libsuitesparseconfig.so -DSUITESPARSE_CONFIG_LIB=$SUITESPARSE_ROOT/lib/libsuitesparseconfig.so -DSUITESPARSE_INCLUDE_DIR=$SUITESPARSE_ROOT/include -DZOLTAN_LIBRARIES=$ZOLTAN_LIBRARYDIR/libzoltan.a -DMETIS_ROOT=$METIS_ROOT -DPARMETIS_INCLUDE_DIR=$PARMETIS_ROOT/include -DPARMETIS_LIBRARY=$PARMETIS_ROOT/lib/libparmetis.so -DCMAKE_CXX_FLAGS="-O2 -mavx -funroll-loops " ../;
 
+make -j #num-threads
 
-Modules needed on ex3:
+Dependencies:
 =======================
 
-module load flow/0.5.0/rpp-dune-amgcpr-branch-2
-module load cmake-3.17.2
-module load doxygen-1.8.18
 
-Alternative dependencies:
-=========================
+This project depends on code from the OPM initiative reservoir simulator Flow (https://opm-project.org/). Currently suports only: Release 2024.10
 
-module load flow/gcc/ompi4.1.5/rpp-dune-amgcpr-branch
-module load cmake/gcc/3.27.7
+The following dependencies of flow are also needed:
+DUNE (Release 2.9.1+)
+Zoltan
+Suitesparse
+Parmetis
+Boost
+openmpi
 
+Copy missing header files to Flow instalation folder
+====================================================
+This project uses the following header files not included in the flow installation folder:
+opm/simulators/linalg/MILU.hpp
+opm/simulators/linalg/PreconditionerFactory_impl.hpp
+opm/simulators/linalg/PressureBhpTransferPolicy.hpp
+opm/simulators/linalg/PreconditionerFactoryGPUIncludeWrapper.hpp
+opm/simulators/utils/ParallelCommunication.hpp
 
-How to add file:
-=================
-
-add code in src/ folder.
-add relevant code in src/CMakeLists.txt
-
-
+These files that can be found in the opm-simulators repo must be added to your $FLOW_ROOT/include directory.
