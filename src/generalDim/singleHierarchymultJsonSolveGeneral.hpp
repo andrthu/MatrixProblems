@@ -56,6 +56,8 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 	
 	if ( boost::algorithm::ends_with( systemDirs[i], ".json") ) {
 	    DR.dict[12] = systemDirs[i];
+	} else if ( boost::algorithm::ends_with( systemDirs[i], ".ini") ) {
+	    DR.read_file_and_update(systemDirs[i].data());
 	}
 	else {
 	    Mat A_loc;

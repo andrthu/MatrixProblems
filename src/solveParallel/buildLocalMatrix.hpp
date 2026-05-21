@@ -463,3 +463,147 @@ void findZeroDiag(const Mat& A, const Vec& v)
 	}
     }
 }
+
+template<class Mat>
+std::vector<int> findConnectedComponents(const Mat& A) {
+    const std::size_t numRows = A.N();
+    std::vector<int> component(numRows, -1); // -1 means unvisited
+    int currentComponentId = 0;
+
+    int largestComp = 0;
+    int largestCompId = 0;
+    std::vector<int> largeComp;
+    for (std::size_t i = 0; i < numRows; ++i) {
+
+        if (component[i] == -1) {
+            std::queue<std::size_t> q;
+            q.push(i);
+            component[i] = currentComponentId;
+
+	    int compSize = 0;
+            while (!q.empty()) {
+                std::size_t u = q.front();
+                q.pop();
+		compSize++;
+
+                // Iterate over the adjacency pattern of row u
+                auto it = A[u].begin();
+                auto end = A[u].end();
+                for (; it != end; ++it) {
+                    std::size_t v = it.index(); // The column index (neighbor)
+                    
+                    if (component[v] == -1) {
+                        component[v] = currentComponentId;
+                        q.push(v);
+                    }
+                }
+            }
+	    if (compSize > largestComp) {
+		largestComp = compSize;
+		largestCompId = currentComponentId;
+		std::cout << "Component size: " << compSize<< " "<< currentComponentId<< std::endl;
+	    }
+
+	    if (compSize > 0.04*A.N() ) {
+		std::cout << currentComponentId << " is a large component" << std::endl; 
+		largeComp.push_back(currentComponentId);
+	    }
+	    
+            currentComponentId++;
+	}
+    }
+    std::cout << "Num components: "<< currentComponentId << " largestComp: "<< largestComp<< " "<< A.N()<<std::endl;
+
+
+    std::vector<int> isLargeComp(numRows, 0);
+
+    int newId = 0;
+    for (int i = 0; i <numRows; ++i) {
+	
+	if (std::find(largeComp.begin(), largeComp.end(), component[i]) != largeComp.end()  ) {
+	    isLargeComp[i] = newId;
+	    newId++;	    
+	} else {
+	    isLargeComp[i] = -1;
+	}
+    }
+    
+    return isLargeComp;
+}
+
+template<class Mat>
+Dune::MatrixIndexSet getAdjecencyRemoveComps(Mat& A, std::vector<int>& comps, int newN)
+{
+
+    Dune::MatrixIndexSet op;
+    op.resize(newN, newN);
+
+    for (auto row = A.begin(); row != A.end(); ++row) {
+	
+	int d = row.index();
+
+	if (comps[d] != -1) {
+
+	    auto col = row->begin();
+	    for (; col != row->end(); ++col) {
+		int nab = col.index();
+		if (comps[nab] != -1) {
+		    
+		    op.add(comps[d], comps[nab]);
+		}
+	    }
+	}
+	
+    }
+    return op;
+}
+template<class Mat>
+void buildRemoveComps(const Mat& A, Mat& newLoc, std::vector<int>& comps, int newN)
+{
+    auto op = getAdjecencyRemoveComps(A, comps, newN);
+    op.exportIdx(newLoc);
+
+    for (auto row = A.begin(); row != A.end(); ++row) {
+
+	int d = row.index();
+	if (comps[d] != -1 ) {
+	    
+	    auto col = row->begin();
+	    for (; col != row->end(); ++col) {
+		int nab = col.index();
+
+		if (comps[nab] != -1) {
+		    newLoc[comps[d]][comps[nab]] = A[d][nab];
+		}
+	    }
+	}
+    }
+}
+
+
+
+template<class MatB, class MatT, class Vec>
+void removeSmallComp(const MatB& A, MatB& AN, const MatT& T, MatT& TN,
+		     const MatT& W, MatT& WN, const Vec& b, Vec& bn)
+{
+    std::vector<int> comps = findConnectedComponents(A);
+    int newN = A.N() - std::count(comps.begin(), comps.end(), -1);
+
+    std::cout << "New N; "<< newN << std::endl;
+
+    buildRemoveComps(A, AN, comps, newN);
+    buildRemoveComps(T, TN, comps, newN);
+    buildRemoveComps(W, WN, comps, newN);
+
+    //std::cout << T.nonzeroes() << " " << TN.nonzeroes() << " " << A.nonzeroes() << " " << AN.nonzeroes() <<std::endl;
+    
+    bn.resize(newN);
+
+    for (int i = 0; i < A.N();i++){
+	if (comps[i] != -1) {
+	    bn[comps[i]] = b[i];
+	}
+    }
+}
+
+

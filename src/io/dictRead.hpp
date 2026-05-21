@@ -70,12 +70,9 @@ public:
     dict[13] = std::string("0");    //Partition coarse graph (1 = true)
     dict[14] = std::string("9");    //Wierd parameter related to coarse graph, now 9=9th percentile
     dict[15] = std::string("-1");   //Maximum node size in coarse graph, -1 means no maximum
-    /*
-    dict[7]  = std::string("2");    //DEBUG_LEVEL
-    dict[8]  = std::string("10");   //PHG_REFINEMENT_LOOP_LIMIT
-    dict[9]  = std::string("None"); //File with edge-weights (d[10]=1)
-    dict[10] = std::string("0");    //Use edge-weight file (0=nor,1=read,2=uni,3=log)
-    dict[11] = std::string("10.0"); //scaler in trans transform (d[10]=3)
-    */
+    dict[16] = std::string("-1");   //Double for determining coarse threshold, value between 0 and 1.
+    dict[17] = std::string("0");    //Part type: 0=zoltan,1=parmetis,2=hyper,3=metisCG,AMGpart=4
+    dict[18] = std::string("1");    //Level to use for ZoltanAMG
+    dict[19] = std::string("0");    //Meassure operations in multJsonSolve 0=false,1=true
   }
 };

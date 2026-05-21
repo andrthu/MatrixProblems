@@ -314,3 +314,4 @@ void serialPartEval(const Mat& t, const Mat& w, std::vector<int> part, int np)
     std::cout << "Cut: " << cut << std::endl;
     std::cout << std::endl;
 }
+

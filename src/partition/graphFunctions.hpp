@@ -26,346 +26,9 @@
 #include <map>
 #include <queue>
 
-struct WgtIdx {
-
-    double wgt;
-    int idx;
-
-    bool operator<(const WgtIdx& other) const {
-	return wgt < other.wgt;
-    }
-};
-
-template <class Mat>
-class TransWellGraph
-{
-public:
-
-    TransWellGraph(Mat T, Mat W, std::vector<int> rs, int useNormal, double logBase, bool isRoot)
-    {
-	if (isRoot) {
-	    wgtType_ = useNormal;
-	    trans = T;
-	    wells = W;
-	    row_size = rs;
-	    base_ = std::exp(logBase);
-	    if (useNormal < 2)
-	    {
-		edgeWgt_ = T;
-		scaler_ = 1.0e18;
-		sortTrans();
-	    }
-	    else if (useNormal == 2)
-	    {
-		findMin();
-		createLogWeights();
-		scaler_ = 1.0;
-	    }
-	    else if (useNormal == 4)
-	    {
-		sortTrans();
-		createCatWeights();
-		scaler_ = 1.0;
-	    }
-	}
-    }
-
-    void findMin()
-    {
-	double minVal = 1.0e18;
-	for (auto trow = trans.begin(); trow != trans.end(); trow++)
-	{	    		    	
-	    auto tcol = trow->begin();
-	    for (; tcol != trow->end(); ++tcol)
-	    {
-		if (*tcol != 0.0)
-		{
-		    if (minVal > *tcol)
-		    {
-			minVal = *tcol;
-		    }
-		}
-	    }
-	}
-	minLogWgt = std::log(minVal);
-	//std::cout << minLogWgt << " "<< minVal << std::endl; 
-    }
-    
-    void createLogWeights()
-    {
-	Mat logWgt(trans);
-	for (auto trow = trans.begin(); trow != trans.end(); trow++)
-	{	    		    	
-	    auto tcol = trow->begin();
-	    int rid = trow.index();
-	    for (; tcol != trow->end(); ++tcol)
-	    {
-		int cid = tcol.index();
-		if (*tcol != 0.0)
-		{
-		    logWgt[rid][cid] = 1.0 + (std::log(*tcol) - minLogWgt)/std::log(base_);
-		}
-		else
-		{
-		    logWgt[rid][cid] = 0.0;
-		}
-		//if (logWgt[rid][cid] < 0)
-		//std::cout << rid << " " << cid<< " "<< logWgt[rid][cid] << " " << *tcol<<" "<< trans[rid][cid]<<std::endl; 
-	    }
-	}	
-	edgeWgt_ = logWgt;
-    }
-
-    void sortTrans()
-    {
-	unsigned nnz = trans.nonzeroes();
-	std::vector<double>trans_list(nnz, 0.0);
-
-	int idx = 0;
-	for (auto row = trans.begin(); row != trans.end(); ++row)
-	{
-	    auto col = row->begin();
-	    for (; col!=row->end(); ++col)
-	    {
-		trans_list[idx] = *col;	
-	    }
-	}
-	
-	std::sort(trans_list.begin(), trans_list.end());
-
-	trans_bound_.push_back(trans_list[nnz/4]);
-	trans_bound_.push_back(trans_list[3*(nnz/4)]);
-
-    }
-
-    void createCatWeights()
-    {
-	Mat catWgt(trans);
-	for (auto trow = trans.begin(); trow != trans.end(); trow++)
-	{	    		    	
-	    auto tcol = trow->begin();
-	    int rid = trow.index();
-	    for (; tcol != trow->end(); ++tcol)
-	    {
-		int cid = tcol.index();
-		double t = *tcol;
-		if (t == 0.0)
-		{
-		    catWgt[rid][cid] = 0.1;
-		}
-		else if (t < trans_bound_[0])
-		{
-		    catWgt[rid][cid] = 1.0;
-		}
-		else if ( t < trans_bound_[1] && t > trans_bound_[0])
-		{
-		    catWgt[rid][cid] = 10.0;
-		}
-		else
-		{
-		    catWgt[rid][cid] = 100.0;
-		}
-	    }
-	}	
-	edgeWgt_ = catWgt;
-    }
-
-    template<class R>
-    void dps(R row, int v, int master, double w, std::vector<bool>& visited,
-	     std::vector<int>& f2c, std::vector<int>& cnode, std::vector<std::tuple<int,int,double> >& edges) {
-
-	visited[v] = true;
-	f2c[v] = master;
-	cnode.push_back(v);
-	
-	auto col = row.begin();
-	for (; col != row.end(); ++col) {
-	    int nab = col.index();
-
-	    if (trans[v][nab] > w) {
-		if (!visited[nab]) {
-		    dps(trans[nab],nab,master,w,visited,f2c,cnode,edges);
-		} else {
-		    if (f2c[v]!=f2c[nab]) {
-			std::cout << "Problem " << nab << " " << v <<
-			    " " << f2c[v] << " " << f2c[nab] <<std::endl; 
-		    }
-		}
-	    }
-	}
-	col = row.begin();
-	for (; col != row.end(); ++col) {
-	    int nab = col.index();
-	    if (f2c[v]!=f2c[nab]) {
-		edges.push_back({v,nab,trans[v][nab]});
-	    }
-	}
-    }
-
-    void createCoarseEdges(std::vector<std::vector<std::tuple<int,int,double> >> gEdges,
-			   std::vector<int> f2c) {
-
-	//std::vector<std::map<int, double> > cedges;
-
-	for (std::vector<std::tuple<int,int,double> > es : gEdges ) {
-
-	    std::map<int, double> ce;
-
-	    for (std::tuple<int,int,double> fe : es) {
-
-		int coarseNab = f2c[std::get<1>(fe)];
-		double weight = wgtType_ == 0 ? 1.0 : std::get<2>(fe);
-		if (std::get<2>(fe) > 0) {
-		    if ( ce.count(coarseNab) == 1 ) {
-			ce[coarseNab] += weight;
-		    } else {
-			ce.insert({coarseNab,weight});
-		    }
-		}
-	    }
-	    cedges.push_back(ce);
-	}
-    }
-    
-    void coarsenGraph(double w) {
-
-	int N = trans.N();
-	std::vector<bool> visited(N, false);
-
-	f2c.resize(N, 0);
-	std::vector<int> c2f;
-
-	int biggest = 0;
-	int single = 0;
-
-	std::vector<std::vector<std::tuple<int,int,double> >> gEdges;
-	int newV = 0;
-	for (int v = 0; v < N; ++v) {
-
-	    if (!visited[v]) {
-
-		//f2c[v] = v;
-		c2f.push_back(v);
-		std::vector<int> cnode;
-		std::vector<std::tuple<int,int,double> > edges;		
-		dps(trans[v],v,newV,w,visited,f2c,cnode,edges);
-		newV++;
-		if (cnode.size() > biggest)
-		    biggest = cnode.size();
-		if (cnode.size() == 1)
-		    single++;
-		gEdges.push_back(edges);
-		courseNodes_.push_back(cnode);
-	    }
-	}
-	createCoarseEdges(gEdges, f2c);
-	std::cout << "Coarse graph size: " << c2f.size()<< " "<< biggest<< " "<< single<< " " << N << std::endl;
-    }
-
-    template<class R, class Q>
-    void dps(R row, Q q, int v, int master, double w, int mns, std::vector<bool>& visited,
-	     std::vector<int>& f2c, std::vector<int>& cnode,
-	     std::vector<std::tuple<int,int,double> >& edges) {
-
-	visited[v] = true;
-	f2c[v] = master;
-	cnode.push_back(v);
-
-	//int totSize = cnode.size() + q.size();
-	auto col = row.begin();
-	for (; col != row.end(); ++col) {
-	    int nab = col.index();
-
-	    if (trans[v][nab] > w) {
-		if (!visited[nab]) {
-		    q.push({trans[v][nab], nab});
-		} 
-	    }
-	}
-
-
-	if ( cnode.size() < mns ) {
-	    if (!q.empty()) {
-		auto strongCon = q.top();
-		int nab = strongCon.idx;
-		q.pop();
-		while (visited[nab] && !q.empty()) {
-		    strongCon = q.top();
-		    nab = strongCon.idx;
-		    q.pop();
-		}
-		if (!visited[nab])
-		    dps(trans[nab],q,nab,master,w,mns,visited,f2c,cnode,edges);
-		
-	    }
-	}
-	
-	col = row.begin();
-	for (; col != row.end(); ++col) {
-	    int nab = col.index();
-	    if (f2c[v]!=f2c[nab]) {
-		edges.push_back({v,nab,trans[v][nab]});
-	    }
-	}
-    }
-
-    void coarsenGraphMaxNodeSize(double w, int maxNodeSize) {
-
-	int N = trans.N();
-	std::vector<bool> visited(N, false);
-
-	f2c.resize(N, 0);
-	std::vector<int> c2f;
-
-	int biggest = 0;
-	int single = 0;
-	int msns = 0;
-
-	std::vector<std::vector<std::tuple<int,int,double> >> gEdges;
-	int newV = 0;
-	for (int v = 0; v < N; ++v) {
-
-	    if (!visited[v]) {
-
-		//std::cout << "start " << v<< std::endl;
-		//f2c[v] = v;
-		std::priority_queue<WgtIdx> q;
-		c2f.push_back(v);
-		std::vector<int> cnode;
-		std::vector<std::tuple<int,int,double> > edges;		
-		dps(trans[v],q,v,newV,w,maxNodeSize,visited,f2c,cnode,edges);
-		newV++;
-		if (cnode.size() > biggest)
-		    biggest = cnode.size();
-		if (cnode.size() == 1)
-		    single++;
-		if (cnode.size() == maxNodeSize)
-		    msns++;
-		gEdges.push_back(edges);
-		courseNodes_.push_back(cnode);
-		//std::cout << v <<" fin "<< cnode.size() << std::endl;
-	    }
-	}
-	createCoarseEdges(gEdges, f2c);
-	std::cout << "Coarse graph size(csize,biggest,numSingle,fsize,numBig): " << c2f.size()<< " "<< biggest<< " "<< single<< " " << N << " "<<  msns << std::endl;
-    }
-
-    Mat trans;
-    Mat wells;
-    Mat edgeWgt_;
-    double minLogWgt;
-    double scaler_;
-    double base_;
-    int wgtType_;
-
-    
-    std::vector<std::vector<int>> courseNodes_;
-    std::vector<std::map<int, double> > cedges;
-    std::vector<int> f2c;
-
-    std::vector<double> trans_bound_;
-    std::vector<int> row_size;
-};
+#include "transWellgraph.hpp"
+#include "hyperGraphFunctions.hpp"
+#include "parmetisPart.hpp"
 
 // Num object NULL
 int getNullNumCells(void* graphPointer, int* err)
@@ -823,58 +486,35 @@ void setMatZoltanGraphFunctions(Zoltan_Struct *zz, const G& graph,
     }
 }
 
+template<class G>
+void setMatZoltanHyperGraphFunctions(Zoltan_Struct *zz, const G& graph, bool pretendNull)
+{
+    G *graphPointer = const_cast<G*>(&graph);
+    if ( pretendNull ) {
+	Zoltan_Set_Num_Obj_Fn(zz, getNullNumCells, graphPointer);
+	Zoltan_Set_Obj_List_Fn(zz, getNullVertexList, graphPointer);
+	Zoltan_Set_HG_Size_CS_Fn(zz, getNullHyperGraphSize, graphPointer);
+	Zoltan_Set_HG_CS_Fn(zz, getNullHyperGraphList, graphPointer);
+	Zoltan_Set_HG_Size_Edge_Wts_Fn(zz, getNullHyperGraphWgtSize, graphPointer);
+	Zoltan_Set_HG_Edge_Wts_Fn(zz, getNullHyperGraphWgtVal, graphPointer);
+    }
+
+    else {
+	Zoltan_Set_Num_Obj_Fn(zz, getMatNumCellsCoarseHyper, graphPointer);
+	Zoltan_Set_Obj_List_Fn(zz, getMatVertexListCoarseHyper, graphPointer);
+	Zoltan_Set_HG_Size_CS_Fn(zz, getCpGridHyperGraphSize, graphPointer);
+	Zoltan_Set_HG_CS_Fn(zz, getCpGridHyperGraphList, graphPointer);
+	Zoltan_Set_HG_Size_Edge_Wts_Fn(zz, getCpGridHyperGraphWgtSize, graphPointer);
+	Zoltan_Set_HG_Edge_Wts_Fn(zz, getCpGridHyperGraphWgtVal, graphPointer);
+    }
+}
+
 
 template<class Comm, class M, class D>
 void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm comm, D dr, std::vector<int>& row_size, int numGlobParts=-1, double coarsenGraph=-1)
 {
     int rank = comm.rank();
-    
-    int rc = ZOLTAN_OK - 1;
-    float ver= 0;
-    int argcc = 0;
-    char ** argvv = 0;
-    struct Zoltan_Struct *zz;
-    
-    int changes, numGidEntries,numLidEntries,numImport,numExport;
-    ZOLTAN_ID_PTR importGlobalGids, importLocalGids, exportGlobalGids,exportLocalGids;
-    int *importProcs, *importToPart, *exportProcs,*exportToPart;
 
-    //MPI_Init(&argc,&argv);
-    rc = Zoltan_Initialize(argcc, argvv, &ver);
-    zz = Zoltan_Create(comm);
-    
-    Zoltan_Set_Param(zz,"DEBUG_LEVEL",dr.dict[5].data());
-    Zoltan_Set_Param(zz,"LB_METHOD","GRAPH");
-
-
-    //Zoltan_Set_Param(zz,"GRAPH_PACKAGE","Parmetis");
-    //Zoltan_Set_Param(zz,"PARMETIS_METHOD","PartKway");
-    //Zoltan_Set_Param(zz,"PARMETIS_OUTPUT_LEVEL","2");
-
-    
-    Zoltan_Set_Param(zz,"LB_APPROACH","PARTITION");
-    Zoltan_Set_Param(zz,"NUM_GID_ENTRIES","1");
-    Zoltan_Set_Param(zz,"NUM_LID_ENTRIES","1");
-    Zoltan_Set_Param(zz,"RETURN_LISTS","ALL");
-    Zoltan_Set_Param(zz,"CHECK_GRAPH","2");
-    Zoltan_Set_Param(zz,"EDGE_WEIGHT_DIM","0");    
-    Zoltan_Set_Param(zz,"OBJ_WEIGHT_DIM","0");
-    Zoltan_Set_Param(zz,"PHG_EDGE_SIZE_THRESHOLD",".35");
-    Zoltan_Set_Param(zz,"IMBALANCE_TOL",dr.dict[3].data());
-    Zoltan_Set_Param(zz,"PHG_USE_TIMERS","0");
-    //Zoltan_Set_Param(zz,"PHG_REFINEMENT_QUALITY",dr.dict[0].data());
-    Zoltan_Set_Param(zz,"PHG_COARSEPARTITION_METHOD", "GREEDY");
-    //Zoltan_Set_Param(zz,"PHG_COARSENING_LIMIT",dr.dict[5].data());
-    //Zoltan_Set_Param(zz,"PHG_COARSENING_NCANDIDATE",dr.dict[6].data());
-    //Zoltan_Set_Param(zz,"PHG_COARSENING_METHOD",dr.dict[2].data()); 
-    //Zoltan_Set_Param(zz,"PHG_REFINEMENT_LOOP_LIMIT",dr.dict[8].data()); 
-
-    if (numGlobParts != -1) {
-	Zoltan_Set_Param(zz, "NUM_GLOBAL_PARTS", std::to_string(numGlobParts).c_str());
-	Zoltan_Set_Param(zz, "RETURN_LISTS", "PARTS");
-	Zoltan_Set_Param(zz,"DEBUG_LEVEL","0");
-    }
-    
     bool pretendNull = rank!=0;
     
     int wgtType = std::stoi(dr.dict[0]);
@@ -885,108 +525,234 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
     double logBase = std::exp(std::stod(dr.dict[11]));    
     bool partCoarseGraph = std::stoi(dr.dict[13]) == 1;
     int maxNodeSize = std::stoi(dr.dict[15]);
-    
-    if (useWeights || useWells)
-	Zoltan_Set_Param(zz,"EDGE_WEIGHT_DIM","1");
-    
-    if (objWgtMet == 1)
-	Zoltan_Set_Param(zz,"OBJ_WEIGHT_DIM","1");
-    if (objWgtMet == 2)
-	Zoltan_Set_Param(zz,"OBJ_WEIGHT_DIM","2");
+    double dictCoarsenGraph = std::stod(dr.dict[16]);
+    bool useParMetis = std::stoi(dr.dict[17]) == 1;
+    bool useHyper = std::stoi(dr.dict[17]) == 2;
+    bool useMetis = std::stoi(dr.dict[17]) == 3;
+    bool useAMG = std::stoi(dr.dict[17]) == 4;
+    int amgLevel = std::stoi(dr.dict[18]);
     
     TransWellGraph<M> twg(g, wells, row_size, wgtType, logBase, rank==0);
-    //twg.findMin();
-    //twg.createLogWeights();
 
-    if (coarsenGraph != -1) {
-	if (maxNodeSize == -1)
-	    twg.coarsenGraph(coarsenGraph);
+    if (!useMetis) {
+	int rc = ZOLTAN_OK - 1;
+	float ver= 0;
+	int argcc = 0;
+	char ** argvv = 0;
+	struct Zoltan_Struct *zz;
+    
+	int changes, numGidEntries,numLidEntries,numImport,numExport;
+	ZOLTAN_ID_PTR importGlobalGids, importLocalGids, exportGlobalGids,exportLocalGids;
+	int *importProcs, *importToPart, *exportProcs,*exportToPart;
+
+	//MPI_Init(&argc,&argv);
+	rc = Zoltan_Initialize(argcc, argvv, &ver);
+	zz = Zoltan_Create(comm);
+    
+	Zoltan_Set_Param(zz,"DEBUG_LEVEL",dr.dict[5].data());
+    
+	if (!useHyper)
+	    Zoltan_Set_Param(zz,"LB_METHOD","GRAPH");
 	else
-	    twg.coarsenGraphMaxNodeSize(coarsenGraph, maxNodeSize);
-	if (partCoarseGraph)
+	    Zoltan_Set_Param(zz,"LB_METHOD","HYPERGRAPH");
+    
+	if (useParMetis) {
+	    Zoltan_Set_Param(zz,"GRAPH_PACKAGE","Parmetis");
+	    Zoltan_Set_Param(zz,"PARMETIS_METHOD","PartKway");
+	    Zoltan_Set_Param(zz,"PARMETIS_OUTPUT_LEVEL","2");
+	    Zoltan_Set_Param(zz,"GRAPH_SYMMETRIZE","TRANSPOSE");
+	    Zoltan_Set_Param(zz,"GRAPH_SYM_WEIGHT","MAX");
+	    Zoltan_Set_Param(zz,"PARMETIS_COARSE_ALG","1");
+	}
+    
+	Zoltan_Set_Param(zz,"LB_APPROACH","PARTITION");
+	Zoltan_Set_Param(zz,"NUM_GID_ENTRIES","1");
+	Zoltan_Set_Param(zz,"NUM_LID_ENTRIES","1");
+	Zoltan_Set_Param(zz,"RETURN_LISTS","ALL");
+	Zoltan_Set_Param(zz,"CHECK_GRAPH","2");
+	Zoltan_Set_Param(zz,"EDGE_WEIGHT_DIM","0");    
+	Zoltan_Set_Param(zz,"OBJ_WEIGHT_DIM","0");
+	Zoltan_Set_Param(zz,"PHG_EDGE_SIZE_THRESHOLD",".35");
+	Zoltan_Set_Param(zz,"IMBALANCE_TOL",dr.dict[3].data());
+	Zoltan_Set_Param(zz,"PHG_USE_TIMERS","0");
+	Zoltan_Set_Param(zz,"PHG_COARSEPARTITION_METHOD", "GREEDY");
+	//Zoltan_Set_Param(zz,"PHG_REFINEMENT_QUALITY",dr.dict[0].data());
+	//Zoltan_Set_Param(zz,"PHG_COARSENING_LIMIT",dr.dict[5].data());
+	//Zoltan_Set_Param(zz,"PHG_COARSENING_NCANDIDATE",dr.dict[6].data());
+	//Zoltan_Set_Param(zz,"PHG_COARSENING_METHOD",dr.dict[2].data()); 
+	//Zoltan_Set_Param(zz,"PHG_REFINEMENT_LOOP_LIMIT",dr.dict[8].data()); 
+
+	if (numGlobParts != -1) {
+	    Zoltan_Set_Param(zz, "NUM_GLOBAL_PARTS", std::to_string(numGlobParts).c_str());
+	    Zoltan_Set_Param(zz, "RETURN_LISTS", "PARTS");
+	    Zoltan_Set_Param(zz,"DEBUG_LEVEL","0");
+	}
+    
+    
+	if (useWeights || useWells)
+	    Zoltan_Set_Param(zz,"EDGE_WEIGHT_DIM","1");
+    
+	if (objWgtMet == 1)
 	    Zoltan_Set_Param(zz,"OBJ_WEIGHT_DIM","1");
-    }
-    else
-	partCoarseGraph = false;
-    
-    setMatZoltanGraphFunctions(zz, twg, pretendNull, useWeights, useWells, partCoarseGraph);
+	if (objWgtMet == 2)
+	    Zoltan_Set_Param(zz,"OBJ_WEIGHT_DIM","2");
 
 
-    rc = Zoltan_LB_Partition(zz,
-			     &changes, /* 1 if partitioning was changed, 0 otherwise */
-			     &numGidEntries,
-			     &numLidEntries,
-			     &numImport,
-			     &importGlobalGids,
-			     &importLocalGids,
-			     &importProcs,
-			     &importToPart,
-			     &numExport, /* Number of vertices I must send to other processes*/
-			     &exportGlobalGids, /* Global IDs of the vertices I must send */
-			     &exportLocalGids, /* Local IDs of the vertices I must send */
-			     &exportProcs, /* Process to which I send each of the vertices */
-			     &exportToPart); /* Partition to which each vertex will belong */
+	if (coarsenGraph != -1) {
+	    if (maxNodeSize == -1)
+		twg.coarsenGraph(coarsenGraph);
+	    else
+		twg.coarsenGraphMaxNodeSize(coarsenGraph, maxNodeSize, rank);
+	    if (partCoarseGraph)
+		Zoltan_Set_Param(zz,"OBJ_WEIGHT_DIM","1");
+	}
+	else {
+	    if (dictCoarsenGraph != -1) {
+
+		Zoltan_Set_Param(zz,"OBJ_WEIGHT_DIM","1");
+		double ctv = 0;
+		if (rank == 0)
+		    ctv = twg.sortTransFindThreshold(dictCoarsenGraph);
+		if (maxNodeSize == -1)
+		    twg.coarsenGraph(ctv);
+		else
+		    twg.coarsenGraphMaxNodeSize(ctv, maxNodeSize, rank);
+	    } else {
+		partCoarseGraph = false;
+	    }
+	}
+	if (useAMG) {
+	    Zoltan_Set_Param(zz,"OBJ_WEIGHT_DIM","1");
+	    partCoarseGraph = true;
+	    typedef Dune::OwnerOverlapCopyCommunication<int,int> DummyComm;
+	    std::shared_ptr<DummyComm> dummyComm(new DummyComm(comm));
+	    dummyComm->remoteIndices().template rebuild<false>();
+	    twg.createAmgGraph(*dummyComm, amgLevel);
+	    if (rank == 0) {
+		std::cout << "Created the AMG graph" << std::endl;
+	    }
+	}
+	if (useHyper)
+	    setMatZoltanHyperGraphFunctions(zz, twg, pretendNull);
+	else
+	    setMatZoltanGraphFunctions(zz, twg, pretendNull, useWeights, useWells, partCoarseGraph);
+
+	rc = Zoltan_LB_Partition(zz,
+				 &changes, /* 1 if partitioning was changed, 0 otherwise */
+				 &numGidEntries,
+				 &numLidEntries,
+				 &numImport,
+				 &importGlobalGids,
+				 &importLocalGids,
+				 &importProcs,
+				 &importToPart,
+				 &numExport, /* Number of vertices I must send to other processes*/
+				 &exportGlobalGids, /* Global IDs of the vertices I must send */
+				 &exportLocalGids, /* Local IDs of the vertices I must send */
+				 &exportProcs, /* Process to which I send each of the vertices */
+				 &exportToPart); /* Partition to which each vertex will belong */
   
-    if (rc!=ZOLTAN_OK)
-	std::cout << "Error occured" << std::endl;
-
-    
-    for (int i = 0; i < numExport; ++i)
-    {
-	mpirank[exportLocalGids[i]] = exportProcs[i];
-    }
-
-    if (numGlobParts != -1) {
+	if (rc!=ZOLTAN_OK)
+	    std::cout << "Error occured" << std::endl;
 
 	if (partCoarseGraph) {
 
-	    for (int i = 0; i < mpirank.size(); ++i) {
-		mpirank[i] = exportToPart[twg.f2c[i]];
+	    if (rank == 0) {
+		std::vector<int> coarsePartRes(twg.courseNodes_.size());
+		for (int i = 0; i < numExport; ++i) {
+		    coarsePartRes[exportLocalGids[i]] = exportProcs[i];
+		}
+
+		for (int i = 0; i < mpirank.size(); ++i) {
+	
+		    mpirank[i] = coarsePartRes[twg.f2c[i]];
+		}
 	    }
-	    
+	}  else {
+	    for (int i = 0; i < numExport; ++i){
+		mpirank[exportLocalGids[i]] = exportProcs[i];
+	    }
+	}
+
+	if (numGlobParts != -1) {
+
+	    if (partCoarseGraph) {
+
+		for (int i = 0; i < mpirank.size(); ++i) {
+		    mpirank[i] = exportToPart[twg.f2c[i]];
+		}
+
+	    } else {
+		for (int i = 0; i < mpirank.size(); ++i) {
+		    mpirank[i] = exportToPart[i];
+		}
+	    }
+
 	} else {
+
+	    std::vector<int> rankIsZero(comm.size(), 0);
+
 	    for (int i = 0; i < mpirank.size(); ++i) {
-		mpirank[i] = exportToPart[i];
-	    }
-	}
 	
-    } else {
-    
-    
-	std::vector<int> rankIsZero(comm.size(), 0);
-
-	for (int i = 0; i < mpirank.size(); ++i) {
-	
-	    rankIsZero[mpirank[i]] +=1;
-	}
-
-	bool zeroRankPresent = false;
-	for (int r = 0; r < rankIsZero.size(); ++r) {
-	    if (rankIsZero[r] == 0) {
-		zeroRankPresent = true;
+		rankIsZero[mpirank[i]] +=1;
 	    }
-	}
-    
-    
-	if (rank ==0) {
 
+	    bool zeroRankPresent = false;
 	    for (int r = 0; r < rankIsZero.size(); ++r) {
-		std::cout << r << ":" << rankIsZero[r]<<std::endl;
+		if (rankIsZero[r] == 0) {
+		    zeroRankPresent = true;
+		}
 	    }
-	    std::cout <<std::endl;
-	
-	    if (zeroRankPresent) {
-		std::cout << "Zero partitions present: ";
+    
+
+	    if (rank ==0) {
+
 		for (int r = 0; r < rankIsZero.size(); ++r) {
-		    if (rankIsZero[r] == 0)
-			std::cout << r << " ";
+		    std::cout << r << ":" << rankIsZero[r]<<std::endl;
 		}
 		std::cout <<std::endl;
+
+		if (zeroRankPresent) {
+		    std::cout << "Zero partitions present: ";
+		    for (int r = 0; r < rankIsZero.size(); ++r) {
+			if (rankIsZero[r] == 0)
+			    std::cout << r << " ";
+		    }
+		    std::cout <<std::endl;
+		}
 	    }
 	}
+	Zoltan_Destroy(&zz);  
     }
-    
+    else {
+	if (coarsenGraph != -1) {
+	    if (maxNodeSize == -1)
+		twg.coarsenGraph(coarsenGraph);
+	    else
+		twg.coarsenGraphMaxNodeSize(coarsenGraph, maxNodeSize, rank);
+	}
+	else {
+	    if (dictCoarsenGraph != -1) {
+		double ctv = 0;
+		if (rank == 0)
+		    ctv = twg.sortTransFindThreshold(dictCoarsenGraph);
+		if (maxNodeSize == -1)
+		    twg.coarsenGraph(ctv);
+		else
+		    twg.coarsenGraphMaxNodeSize(ctv, maxNodeSize, rank);
+	    } else {
+		partCoarseGraph = false;
+	    }
+	}
+	std::vector<int> partC;
+	if (rank == 0) {
+	    partWithMetis(twg, dr, partC, comm.size());
+
+	    for (int i = 0; i < mpirank.size(); ++i) {
+	
+		mpirank[i] = partC[twg.f2c[i]];
+	    }
+	}
+    }	  
     comm.broadcast(&mpirank[0], mpirank.size(), 0);
-    
-    Zoltan_Destroy(&zz);  
 }

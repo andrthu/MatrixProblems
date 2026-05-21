@@ -16,7 +16,7 @@
   You should have received a copy of the GNU General Public License
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
-
+#include <algorithm>
 
 template<class Mat>
 double infoNNZ(Mat& t)
@@ -83,11 +83,35 @@ double infoNNZ(Mat& t)
     return max;
 }
 
+template<class Mat>
+std::vector<double> infoNNZ2(Mat& t)
+{
+    std::vector<double> vals;
+    double max = 0;
+    double s = 0;
+    for (auto row=t.begin();row!=t.end();++row) {
+	auto col = row->begin();
+	for (; col!=row->end(); ++col) {
+	    auto val = *col;
+	    if (val > max)
+		max = val;
+	    vals.push_back(val);
+	    s += val;
+	}
+    }
+
+    std::sort(vals.begin(),vals.end());
+
+    return vals;
+}
+
 template<class Mat, class T>
-void removeSmallTransNNZ(const Mat& A, Mat& M, T trans, double max, double w)
+void removeSmallTransNNZ(const Mat& A, Mat& M, T trans, double w)
 {
     Dune::MatrixIndexSet op;
     op.resize( A.N(), A.N() );
+
+    
 
     for (auto row = A.begin(); row != A.end(); ++row) {
 
@@ -97,7 +121,7 @@ void removeSmallTransNNZ(const Mat& A, Mat& M, T trans, double max, double w)
 	for (; col != row->end(); ++col) {
 	    int nab = col.index();
 	    if (trans.exists(d,nab)) {
-		if (trans[d][nab] > w*max)
+		if (trans[d][nab] > w)
 		    op.add(d,nab);
 	    } else {
 		op.add(d,nab);
@@ -162,20 +186,22 @@ void gen_dim_list_trans_info(int argc, char** argv)
 
 	if ( boost::algorithm::ends_with( systemDirs[i], ".json") ) {
 	    DR.dict[12] = systemDirs[i];
-	}
+	} else if ( boost::algorithm::ends_with( systemDirs[i], ".ini") ) {
+	    DR.read_file_and_update(systemDirs[i].data());
+	}    
 	else {
 	    Mat trans, wells;
 
 	    readTransMatOnly(trans, systemDirs[i], rank);
 	    readWellMatOnly(wells, systemDirs[i], rank);
-	    
+
 	    std::vector<int> part;
 	    std::vector<int> rs(trans.N()); 
 	    storeRowSizeFromRoot(trans, rs, cc);
 	    part.resize(trans.N(), rank);
-	    
+
 	    zoltanPartitionFunction(part, trans, wells, cc, DR, rs, 10);
-	    
+
 	    mats.push_back(trans);
 
 	    Mat3 A_loc;
@@ -192,43 +218,46 @@ void gen_dim_list_trans_info(int argc, char** argv)
 	auto t = mats[i];
 	std::cout << t.N() << " "<<t.nonzeroes()  <<std::endl;
 	double max = infoNNZ(t);
+	std::vector<double> sortTrans = infoNNZ2(t);
 	Mat3 M;
 	auto A_ = systems[i];
 	GLO op(A_, *parComm);
 	auto sp = sps[i];
 	auto rhs_ = rhs[i];
-	
+
 	std::vector<double> W = {-1, 0.00001, 0.00002, 0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.05, 0.1};
+	std::vector<double> ratio = {-1, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.8};
 
 	if (block_size == 2) {
 	    W = {-1, 0.000001, 0.000002, 0.000005, 0.00001, 0.00002, 0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.005};
-	    
+
 	} else {
 
 	    if (t.N() > 74431){
 
 		W = {-1, 0.00001, 0.00002, 0.00003, 0.00004, 0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.01};
 	    }
-
 	}
 
-	for (double w : W) {
-	    removeSmallTransNNZ(A_, M, t, max, w);
+	for (double w : ratio) {
+
+	    double threshold = -1;
+	    if (w > 0)
+		threshold = sortTrans[(int) (w*sortTrans.size())];
+	    //removeSmallTransNNZ(A_, M, t, max, w);
+	    removeSmallTransNNZ(A_, M, t, threshold);
 
 	    double rr = ((double)M.nonzeroes())/A_.nonzeroes();
 	    double rr2 = ((double)M.nonzeroes() - M.N() )/(A_.nonzeroes()-M.N());
-	    //std::cout << M.N() << " "<<M.nonzeroes()<< " " << A_.nonzeroes() << " "<< rr <<std::endl;
+	    //std::cout << M.N() << " " << M.nonzeroes() << " " << A_.nonzeroes() << " " << rr <<std::endl;
 
 	    std::string use_ilu("ILU");
 	    auto ilu_help = Opm::convertString2Milu(use_ilu);
 
-	    double tol = 0.005;
-	    if (block_size == 2) {
-		tol = 0.005;
-	    }
+	    double tol = std::stod(DR.dict[1]);
 	    
 	    ILU ilu(M, *parComm, 1, ilu_help, M.N(), false, false );
-	    Solver bicg(op, sp, ilu, tol, 200, 0);
+	    Solver bicg(op, sp, ilu, tol, 2000, 0);
 	    Stat statistics;
 
 	    Vec x(A_.N());

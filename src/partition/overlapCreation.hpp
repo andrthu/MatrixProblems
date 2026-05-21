@@ -22,6 +22,8 @@
 
 #endif // OPM_OVERLAPCREATION_HEADER_INCLUDED
 
+#include "helperFunctions.hpp"
+
 template<class Comm>
 void myIds(std::vector<int>& local2global, std::vector<int>& global2local, 
 	   std::vector<int>& overlap, Comm comm)
@@ -172,6 +174,31 @@ void addNoOverlap(std::vector<std::set<int>>& overlap,
     }
 }
 
+template<class Mat>
+void countConnections(const Mat& A, const std::vector<int>& part, int rank, int csize)
+{
+    if (rank == 0) {
+
+	std::vector<int> nc(csize,0);
+	for (auto row=A.begin();row!=A.end();++row) {
+
+	    int id = row.index();
+	    auto col = row->begin();
+	    for (; col!=row->end(); ++col) {
+		int nab = col.index();
+
+		if (part[id] != part[nab]) {
+		    nc[part[id]]++;
+		}
+	    }
+	}
+
+	for (int i = 0; i < nc.size(); i++ ) {
+	    std::cout << "Conections rank " << i << ": " << nc[i] << std::endl; 
+	}
+    }
+}
+
 template<class Mat, class Vec, class Comm, class C>
 void constructLocalFromRoot(Mat A, Mat& A_loc, int N, Vec& rhs, Vec& rhs_loc, const std::vector<int>& mpivec,
 			    Comm& comm, std::shared_ptr<Comm>& parComm, const C& cc)
@@ -202,7 +229,9 @@ void constructLocalFromRoot(Mat A, Mat& A_loc, int N, Vec& rhs, Vec& rhs_loc, co
     if (rank == 0) {std::cout << "Building coms etc. complete"<< std::endl;}
     cc.barrier();
     Dune::RedistributeInformation<Comm> redistInf;
-    bool ret = Dune::buildCommunication(graph, setPartition, comm, parComm, redistInf.getInterface(), 0);
+    bool ret = Dune::buildCommunication(graph, setPartition, comm, parComm, redistInf.getInterface(), true);
+    cc.barrier();
+    if (rank == 0) {std::cout << "Building coms1.5 etc. complete"<< std::endl;}
     redistInf.setSetup();
     cc.barrier();
     
@@ -229,14 +258,21 @@ std::vector<int> partAndDistAfterRead(Mat& A, Vec& rhs,Graph trans, Graph wells,
     std::vector<int> mpivec;
     if (cc.size() > 0) {
 
-	Mat A_loc_;
+	Mat A_loc_, A_;
+	Graph trans_, wells_;
+	Vec rhs_;
+	if (rank == 0) {
+	    removeSmallComp(A,A_,trans,trans_,wells,wells_,rhs,rhs_);
+	}
 	int N;
+	
 	if (rank == 0)
-	    N = A.N();
+	    N = A_.N();
 	cc.broadcast(&N, 1, 0);
-
+	//findConnectedComponents(A);
+	
 	std::vector<int> row_size(N);
-	storeRowSizeFromRoot(A, row_size, cc);
+	storeRowSizeFromRoot(A_, row_size, cc);
 
 	//partition matrix
 	mpivec.resize(N, rank);
@@ -244,12 +280,16 @@ std::vector<int> partAndDistAfterRead(Mat& A, Vec& rhs,Graph trans, Graph wells,
 	    if (usePartVec)
 		mpivec = partvec;
 	    else
-		zoltanPartitionFunction(mpivec, trans, wells, cc, DR, row_size);
+		zoltanPartitionFunction(mpivec, trans_, wells_, cc, DR, row_size);
 	    //evalWellCommOnRoot(mpivec,wells,cc);
 	}
 	if (rank == 0) {std::cout << "Zoltan partition complete"<< std::endl;}
 	cc.barrier();
-	constructLocalFromRoot(A, A_loc_, N, rhs, rhs_loc, mpivec, comm, parComm, cc);
+	countConnections(A_, mpivec, rank, cc.size());
+	getWeightedEdgeCut(trans_, mpivec, rank);
+	cc.barrier();
+	
+	constructLocalFromRoot(A_, A_loc_, N, rhs_, rhs_loc, mpivec, comm, parComm, cc);
 	if (rank == 0) {std::cout << "Local Matrix construction complete"<< std::endl;}
 	parComm->remoteIndices().template rebuild<false>();
 	cc.barrier();

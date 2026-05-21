@@ -183,3 +183,4 @@ void getIndexSetInfo(Comm comm, const C& cc, std::vector<int>& comTab, std::vect
 	comTab[ri->first] = num1aa;
     }
 }
+

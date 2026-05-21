@@ -1,4 +1,3 @@
-
 template<class Mat, class Agg>
 void buildPro(Mat& P, Mat& PT, const Agg& aggM, int N, int M) {
     Dune::MatrixIndexSet op, opT;
@@ -133,7 +132,7 @@ void gen_dim_hirTest(int argc, char** argv)
     flsp_json.linsolver_ = DR.dict[12];
 
     Opm::PropertyTree prm_json(flsp_json.linsolver_);
-    
+
     using CriterionBase
 	= Dune::Amg::AggregationCriterion<Dune::Amg::SymmetricDependency<Mat, Dune::Amg::FirstDiagonal>>;
     using Criterion = Dune::Amg::CoarsenCriterion<CriterionBase>;
@@ -142,16 +141,15 @@ void gen_dim_hirTest(int argc, char** argv)
     auto pc_child = prm_json.get_child_optional("preconditioner");
     setCrit(criterion, *pc_child );
 
-
     typedef std::allocator<Operator> Allocator;
     typedef Dune::Amg::Hierarchy<Comm,Allocator> ParallelInformationHierarchy;
     typedef typename ParallelInformationHierarchy::Iterator PInfoIterator;
-    
+
     ParallelInformationHierarchy parallelInformation(parComm);
     PInfoIterator infoLevel = parallelInformation.finest();
 
     infoLevel->buildGlobalLookup(op.getmat().N());
-    
+
     typedef Dune::Amg::PropertiesGraphCreator<Operator,Comm> GraphCreator;
     typedef typename GraphCreator::PropertiesGraph PropertiesGraph;
     typedef typename GraphCreator::GraphTuple GraphTuple;
@@ -160,13 +158,13 @@ void gen_dim_hirTest(int argc, char** argv)
     std::vector<bool> excluded(op.getmat().N(), false);
 
     typedef Dune::NegateSet<typename Comm::OwnerSet> OverlapFlags;
-    
+
     GraphTuple graphs = GraphCreator::create(op, excluded, *parComm, OverlapFlags());
 
     typedef Dune::Amg::AggregatesMap<Vertex> AggMap;
     AggMap* aggregatesMap=new AggMap(std::get<1>(graphs)->maxVertex()+1);
 
-    
+
     auto [noAggregates, isoAggregates, oneAggregates, skippedAggregates] =
           aggregatesMap->buildAggregates(op.getmat(), *(std::get<1>(graphs)), criterion, false);
 
@@ -186,7 +184,7 @@ void gen_dim_hirTest(int argc, char** argv)
     Mat AR;
     buildAggRestrict(AR,A_loc,*aggregatesMap,op.getmat().N());
     std::cout<<" AR NxM "<< AR.N() << " " << AR.M()<<" "<< AR.nonzeroes()<< " nnz(RART)/nnz(A): "<< (float)AR.nonzeroes()/A_loc.nonzeroes() <<std::endl;
-    
+
     Mat PA,PAPT;
     Dune::matMultMat(PA,P,A_loc);
     std::cout<<" PA NxM "<< PA.N() << " " << PA.M()<<" "<< PA.nonzeroes()<<std::endl;
@@ -211,13 +209,12 @@ void gen_dim_hirTest(int argc, char** argv)
     std::cout<<" RA NxM "<< RA.N() << " " << RA.M()<<" "<< RA.nonzeroes()<<std::endl;
     Dune::matMultMat(RART,RA,PST);
     std::cout<<" RART NxM "<< RART.N() << " " << RART.M()<<" "<< RART.nonzeroes()<< " nnz(RART)/nnz(A): "<< (float)RART.nonzeroes()/A_loc.nonzeroes() <<std::endl;
-    
+
     int aggCount = 0;
     //for (auto aggI = aggregatesMap->begin(); aggI!= aggregatesMap->end(); ++aggI, aggCount++)
     //if(rank==0 )
     //std::cout<<" Agg value "<< aggCount << " " << *aggI<< " "<< y[*aggI][0]<< std::endl;
 
-    
     if(rank==0 )
 	std::cout<<" Have built "<<noAggregates
 		 <<" aggregates totally ("<<isoAggregates<<" isolated aggregates, "
@@ -228,12 +225,12 @@ void gen_dim_hirTest(int argc, char** argv)
     CommunicationArgs commargs(parComm->communicator(),parComm->category());
     parallelInformation.addCoarser(commargs);
     ++infoLevel;
-    
+
     typedef Dune::Amg::VertexVisitedTag VertVetTag;
     typename Dune::PropertyMapTypeSelector<VertVetTag,PropertiesGraph>::Type visitedMap =
 	get(VertVetTag(), *(std::get<1>(graphs)));
 
-    
+
     int aggregates = Dune::Amg::IndicesCoarsener<Comm,OverlapFlags>
 	::coarsen(*parComm,
 		  *(std::get<1>(graphs)),
@@ -259,7 +256,7 @@ void gen_dim_hirTest(int argc, char** argv)
 	*iter=false;
 
     VisitedMap2 visitedMap2(visited.begin(), Dune::IdentityMap());
-    
+
     Dune::Amg::GalerkinProduct<Comm> productBuilder;
     std::shared_ptr<typename Operator::matrix_type>
 	coarseMatrix(productBuilder.build(*(std::get<0>(graphs)), visitedMap2,
@@ -270,7 +267,7 @@ void gen_dim_hirTest(int argc, char** argv)
 
     productBuilder.calculate(op.getmat(),*aggregatesMap, *coarseMatrix, *infoLevel, OverlapFlags());
 
-    
+
     std::cout<<" CM NxM "<< coarseMatrix->N() << " " << coarseMatrix->M()<<" "<< coarseMatrix->nonzeroes()<<std::endl;
 
 }

@@ -21,9 +21,29 @@ find_package(ParMETIS REQUIRED)
 #    INTERFACE_INCLUDE_DIRECTORIES /cm/shared/ex3-modules/202309a/milanq/pkgs/parmetis-32-4.0.3/include
 #    )
 
+find_package(OpenMP REQUIRED)
+
+
 find_package(opm-simulators CONFIG REQUIRED)
 
 add_executable("MatrixProblems" MatrixProblems.cc)
+
+#add_executable("twoLevelMethodTest" 
+#  twoLevelMethodTest.cpp
+#  io/inputRead.hpp
+#  io/dictRead.hpp
+#  solveParallel/ghostLastOperations.hpp
+#  partition/graphFunctions.hpp
+#  partition/overlapCreation.hpp
+#  solveParallel/reorder.hpp
+#  solveParallel/buildLocalMatrix.hpp
+#  solveParallel/nonQuadraticLocalMatrix.hpp
+#  partition/setIndexSet.hpp
+#  partition/evaluatePartition.hpp
+#  partition/meassureCommunication.hpp
+#  partition/meassureOperationsMinLoop.hpp
+#  partition/flexibleSolverTimer.hpp
+#  generalDim/twoLevelMethod.hpp)
 
 add_executable("jsonSolve" 
   jsonSolve.cpp
@@ -235,12 +255,46 @@ add_executable("singleHierarchyMultJsonSolveCO2"
   partition/flexibleSolverTimer.hpp
   generalDim/singleHierarchymultJsonSolveGeneral.hpp)
 
+add_executable("transmissibilityHirPart" 
+  transmissibilityHirPart.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/transmissibilityHirPart.hpp)
+
+add_executable("transmissibilityHirPartCo2"
+  transmissibilityHirPartCo2.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/transmissibilityHirPart.hpp)
 
 add_executable("eclipseIO"
   eclipseIO.cpp
   )
 
 set(opm_dep
+  #twoLevelMethodTest
   jsonSolve
   jsonSolveCO2
   hirTest
@@ -254,6 +308,8 @@ set(opm_dep
   listTransInfoCo2
   zoltanInfo
   zoltanInfoCo2
+  transmissibilityHirPart
+  transmissibilityHirPartCo2
   )
 
 
@@ -267,5 +323,6 @@ foreach(exe ${opm_dep})
 
   target_link_libraries(${exe} ${BOOST_LIBRARYDIR}/libboost_program_options.so )
   target_link_libraries(${exe} ${BOOST_LIBRARYDIR}/libboost_filesystem.so )
+  #target_link_libraries(${exe} PRIVATE OpenMP::OpenMP_CXX)
   
 endforeach()

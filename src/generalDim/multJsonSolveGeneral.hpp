@@ -51,11 +51,22 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
     Comm comm(cc);
     std::shared_ptr<Comm> parComm(new(Comm));
     std::vector<int> mpiVec;
+
     for (int i = 0; i < systemDirs.size(); ++i) {
-	
+	if ( boost::algorithm::ends_with( systemDirs[i], ".ini") ) {
+	    
+	    DR.read_file_and_update(systemDirs[i].data());
+	    if (rank == 0) {
+		DR.write_param();
+	    }
+	}
+    }
+    
+    for (int i = 0; i < systemDirs.size(); ++i) {
+
 	if ( boost::algorithm::ends_with( systemDirs[i], ".json") ) {
 	    DR.dict[12] = systemDirs[i];
-	}
+	} else if ( boost::algorithm::ends_with( systemDirs[i], ".ini") ) {}
 	else {
 	    Mat A_loc;
 	    Vec rhs_loc;
@@ -86,7 +97,6 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
     
     for (int i = 0; i < systems.size(); ++i) {
 
-	
 	std::function<Vec()> quasi;
 	auto Ai = systems[i];
 	quasi = [Ai, pidx]() {
@@ -94,8 +104,22 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
 	};
 
 	GLO glo(Ai, *parComm);
+
 	auto fs_json = std::make_unique<FlexibleSolverType>(glo, *parComm, prm_json, quasi, pidx);
 
+	if (std::stoi(DR.dict[19]) == 0) {
+	    if (rank == 0) {std::cout << std::endl;}
+	    cc.barrier();
+	    multipleMinLoopTimeComm(cc, comm, rhs[i]);
+	    if (rank == 0) {std::cout << std::endl;}
+	    cc.barrier();
+	    multipleMinLoopTimeSpMVAS(cc, glo, rhs[i], 3);
+	    if (rank == 0) {std::cout << std::endl;}
+	    cc.barrier();
+	    multipleMinLoopTimeFS(cc, *fs_json, rhs[i], pc_Type, 3);
+	    if (rank == 0) {std::cout << std::endl;}
+	}
+	
 	Vec crhs(rhs[i]);
 	Vec x(crhs.size());
 	x=0;

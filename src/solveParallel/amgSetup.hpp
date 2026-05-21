@@ -189,7 +189,7 @@ void setCrit(Crit& criterion, Opm::PropertyTree prm_amg)
     criterion.setMaxConnectivity(prm_amg.get<int>("maxconnectivity", 15));
     criterion.setMaxAggregateSize(prm_amg.get<int>("maxaggsize", 6));
     criterion.setMinAggregateSize(prm_amg.get<int>("minaggsize", 4));
-    criterion.setRandomParallelGhostIndexOrder(prm_amg.get<bool>("random_coarse_ghost_index", true));
+    //criterion.setRandomParallelGhostIndexOrder(prm_amg.get<bool>("random_coarse_ghost_index", true));
 }
 
 template<class SA>
