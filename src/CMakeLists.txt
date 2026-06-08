@@ -289,6 +289,49 @@ add_executable("transmissibilityHirPartCo2"
   partition/flexibleSolverTimer.hpp
   generalDim/transmissibilityHirPart.hpp)
 
+add_executable("wellJsonSolve" 
+  wellJsonSolve.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  io/readWells.hpp
+  io/standardWell.hpp
+  io/multiSegmentWell.hpp
+  solveParallel/ghostLastOperations.hpp
+  solveParallel/operatorWithWell.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/wellJsonSolveGeneral.hpp)
+
+add_executable("listTransInfoWellOperator" 
+  listTransInfoWellOperator.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  io/readWells.hpp
+  io/standardWell.hpp
+  io/multiSegmentWell.hpp
+  solveParallel/ghostLastOperations.hpp
+  solveParallel/operatorWithWell.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/listTransInfoWellOperator.hpp)
+
+
 add_executable("eclipseIO"
   eclipseIO.cpp
   )
@@ -310,6 +353,8 @@ set(opm_dep
   zoltanInfoCo2
   transmissibilityHirPart
   transmissibilityHirPartCo2
+  wellJsonSolve
+  listTransInfoWellOperator
   )
 
 

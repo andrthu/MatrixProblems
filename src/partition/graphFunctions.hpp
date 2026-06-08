@@ -526,10 +526,11 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
     bool partCoarseGraph = std::stoi(dr.dict[13]) == 1;
     int maxNodeSize = std::stoi(dr.dict[15]);
     double dictCoarsenGraph = std::stod(dr.dict[16]);
-    bool useParMetis = std::stoi(dr.dict[17]) == 1;
-    bool useHyper = std::stoi(dr.dict[17]) == 2;
-    bool useMetis = std::stoi(dr.dict[17]) == 3;
-    bool useAMG = std::stoi(dr.dict[17]) == 4;
+    int partMetOpt = std::stoi(dr.dict[17]);
+    bool useParMetis =  partMetOpt == 1 ;
+    bool useHyper = partMetOpt == 2;
+    bool useMetis = partMetOpt == 3 || partMetOpt == 5;
+    bool useAMG = partMetOpt == 4 || partMetOpt == 5;
     int amgLevel = std::stoi(dr.dict[18]);
     
     TransWellGraph<M> twg(g, wells, row_size, wgtType, logBase, rank==0);
@@ -742,6 +743,17 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
 		    twg.coarsenGraphMaxNodeSize(ctv, maxNodeSize, rank);
 	    } else {
 		partCoarseGraph = false;
+	    }
+	}
+
+	if (useAMG) {
+	    partCoarseGraph = true;
+	    typedef Dune::OwnerOverlapCopyCommunication<int,int> DummyComm;
+	    std::shared_ptr<DummyComm> dummyComm(new DummyComm(comm));
+	    dummyComm->remoteIndices().template rebuild<false>();
+	    twg.createAmgGraph(*dummyComm, amgLevel);
+	    if (rank == 0) {
+		std::cout << "Created the AMG graph" << std::endl;
 	    }
 	}
 	std::vector<int> partC;

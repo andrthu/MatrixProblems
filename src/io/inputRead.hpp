@@ -77,6 +77,32 @@ void readFromDir(Mat3& A, Mat1& trans, Mat1& wells, Vec& rhs, std::string dirNam
 
 }
 
+template<class Mat3, class Mat1, class Vec>
+void readFromDir(Mat3& A, Mat1& trans, Mat1& wells, Vec& rhs, Vec& impes, std::string dirName, int rank, bool readWT=true)
+{
+    std::string d = dirName;
+    std::string A_name = d + std::string("/BlackoilMatrix.mtx");
+    std::string t_name = d + std::string("/transAdj.mtx");
+    std::string w_name = d + std::string("/wellAdj.mtx");
+    std::string r_name = d + std::string("/BlackoilRHS.vec");
+    std::string i_name = d + std::string("/impes_weights.vec");
+
+    if (rank == 0) {
+        std::cout<<"Read Matrix"<<std::endl;
+        readMatMarketObject(A, A_name.data());
+        
+        if (readWT) {
+            readMatMarketObject(trans, t_name.data());
+            readMatMarketObject(wells, w_name.data());
+        }
+        std::cout<<"Read RHS"<<std::endl;
+        readMatMarketObject(rhs, r_name.data());
+        if (boost::filesystem::exists(i_name))
+            readMatMarketObject(impes, i_name.data());
+    }
+
+}
+
 template<class Mat1>
 void readTransMatOnly(Mat1& trans, std::string dirName, int rank)
 {
