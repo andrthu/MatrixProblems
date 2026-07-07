@@ -277,9 +277,9 @@ public:
     }
 
     template<class R, class Q>
-    void dps(R row, Q q, int v, int master, double w, int mns, std::vector<bool>& visited,
-	     std::vector<int>& f2c, std::vector<int>& cnode,
-	     std::vector<std::tuple<int,int,double> >& edges) {
+    void dpsq(R row, Q q, int v, int master, double w, int mns, std::vector<bool>& visited,
+	      std::vector<int>& f2c, std::vector<int>& cnode,
+	      std::vector<std::tuple<int,int,double> >& edges) {
 
 	visited[v] = true;
 	f2c[v] = master;
@@ -293,7 +293,7 @@ public:
 	    if (trans[v][nab] > w) {
 		if (!visited[nab]) {
 		    q.push({trans[v][nab], nab});
-		} 
+		}
 	    }
 	}
 
@@ -309,8 +309,7 @@ public:
 		    q.pop();
 		}
 		if (!visited[nab])
-		    dps(trans[nab],q,nab,master,w,mns,visited,f2c,cnode,edges);
-		
+		    dpsq(trans[nab],q,nab,master,w,mns,visited,f2c,cnode,edges);
 	    }
 	}
 	
@@ -347,7 +346,7 @@ public:
 		c2f.push_back(v);
 		std::vector<int> cnode;
 		std::vector<std::tuple<int,int,double> > edges;		
-		dps(trans[v],q,v,newV,w,maxNodeSize,visited,f2c,cnode,edges);
+		dpsq(trans[v],q,v,newV,w,maxNodeSize,visited,f2c,cnode,edges);
 		newV++;
 		if (cnode.size() > biggest)
 		    biggest = cnode.size();

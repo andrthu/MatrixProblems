@@ -34,6 +34,7 @@ void partWithMetis(const Graph& graph, D dr, std::vector<int>& mpirank, int numP
 
     int n_nodes = nodes.size();
     mpirank.resize(n_nodes,0);
+    std::vector<idx_t> dummy(n_nodes,0);
     xadj.push_back(0);
     for (int i = 0; i < n_nodes; ++i) {
         // Add vertex weight
@@ -70,8 +71,10 @@ void partWithMetis(const Graph& graph, D dr, std::vector<int>& mpirank, int numP
     // 3. Call METIS
     int result = METIS_PartGraphKway(&nvtxs, &ncon, xadj.data(), adjncy.data(), 
                                      vwgt.data(), NULL, adjwgt.data(), &nparts, tpwgts.data(),
-				     ubvec.data(), options, &objval, mpirank.data());
+				     ubvec.data(), options, &objval, dummy.data());
 
+    for (int i=0; i<n_nodes;++i)
+        mpirank[i] = dummy[i]; 
     if (result == METIS_OK) {
         std::cout << "Partitioning successful. Edge cut: " << objval << std::endl;
 	//for (int i = 0; i < nvtxs; ++i) {
