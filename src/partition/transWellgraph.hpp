@@ -123,7 +123,7 @@ public:
 	    auto col = row->begin();
 	    for (; col!=row->end(); ++col)
 	    {
-		trans_list[idx] = *col;	
+		trans_list[idx++] = *col;
 	    }
 	}
 	
@@ -246,7 +246,7 @@ public:
 	int N = trans.N();
 	std::vector<bool> visited(N, false);
 
-	f2c.resize(N, 0);
+	f2c.resize(N, -1);
 	std::vector<int> c2f;
 
 	int biggest = 0;
@@ -327,7 +327,7 @@ public:
 	int N = trans.N();
 	std::vector<bool> visited(N, false);
 
-	f2c.resize(N, 0);
+	f2c.resize(N, -1);
 	std::vector<int> c2f;
 
 	int biggest = 0;
