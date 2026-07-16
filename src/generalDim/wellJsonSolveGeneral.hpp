@@ -105,7 +105,10 @@ void gen_dim_well_jsonSolve_mult(std::vector<std::string> systemDirs)
     
     // Create QuasiImpesWeights or trueimpes from weights file function used for CPR
     int pidx = 1;
-    if (block_size == 2) { pidx = 0; }
+    if (block_size == 2) {
+	if ( !isSPE10(systemDirs) )
+	    pidx = 0;
+    }
     std::function<Vec()> quasi;
     if (pc_Type == "cpr" || pc_Type == "cprw") {
 

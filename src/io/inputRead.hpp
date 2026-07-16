@@ -22,6 +22,8 @@
 
 #endif // OPM_INPUTREAD_HEADER_INCLUDED
 
+
+
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -441,4 +443,51 @@ void readDirWithWell(int argc, char** argv, Mat& A, Mat1& trans, Mat1& wells, Ve
 	    }
 	}
     }
+}
+
+bool isSPE10(int argc, char** argv) {
+
+    namespace fs = boost::filesystem;
+    const std::string targetDir = "opmSPE10M2";
+
+    for (int i = 1; i < argc; ++i) {
+        if (argv[i] == nullptr) continue;
+
+        fs::path p(argv[i]);
+
+        // Verify the path exists using Boost's helper
+        if (fs::exists(p)) {
+            // Iterate through the path elements (e.g., folder names)
+            for (const auto& part : p) {
+                // Boost paths compare cleanly with strings
+                if (part == targetDir) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool isSPE10(std::vector<std::string> systemDirs) {
+
+    namespace fs = boost::filesystem;
+    const std::string targetDir = "opmSPE10M2";
+
+    for (int i = 0; i < systemDirs.size(); ++i) {
+
+        fs::path p(systemDirs[i]);
+
+        // Verify the path exists using Boost's helper
+        if (fs::exists(p)) {
+            // Iterate through the path elements (e.g., folder names)
+            for (const auto& part : p) {
+                // Boost paths compare cleanly with strings
+                if (part == targetDir) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }

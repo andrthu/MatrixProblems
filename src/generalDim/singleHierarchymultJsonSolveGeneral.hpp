@@ -89,7 +89,10 @@ void gen_dim_jsonSolve_mult_sys_same_hir(std::vector<std::string> systemDirs)
 
     // Create QuasiImpesWeights function used for CPR
     int pidx = 1;
-    if (block_size == 2) { pidx = 0; }
+    if (block_size == 2) {
+	if ( !isSPE10(systemDirs) )
+	    pidx = 0;
+    }
     std::function<Vec()> quasi;
     quasi = [matrix, pidx]() {
 	    return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(*matrix, pidx, false);

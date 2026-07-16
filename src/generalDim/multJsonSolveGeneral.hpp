@@ -93,7 +93,8 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
     
     int pidx = 1;
     if (block_size == 2)
-	pidx = 0;
+	if ( !isSPE10(systemDirs) )
+	    pidx = 0;
     
     for (int i = 0; i < systems.size(); ++i) {
 

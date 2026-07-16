@@ -81,7 +81,8 @@ void gen_dim_jsonSolve(int argc, char** argv)
     std::function<Vec()> quasi;
     int pidx = 1;
     if (block_size == 2)
-	pidx = 0;
+	if ( !isSPE10(argc, argv) )
+	    pidx = 0;
     
     quasi = [A_loc, pidx]() {
 	return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(A_loc, pidx, false);
