@@ -187,7 +187,43 @@ add_executable("zoltanInfoCo2"
   generalDim/jsonSolveGeneral.hpp
   generalDim/zoltanInfo.hpp)
 
-add_executable("multJsonSolve" 
+add_executable("coarsePartInfo"
+  coarsePartInfo.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/jsonSolveGeneral.hpp
+  generalDim/coarsePartInfo.hpp)
+
+add_executable("coarsePartInfoCo2"
+  coarsePartInfoCo2.cpp
+  io/inputRead.hpp
+  io/dictRead.hpp
+  solveParallel/ghostLastOperations.hpp
+  partition/graphFunctions.hpp
+  partition/overlapCreation.hpp
+  solveParallel/reorder.hpp
+  solveParallel/buildLocalMatrix.hpp
+  solveParallel/nonQuadraticLocalMatrix.hpp
+  partition/setIndexSet.hpp
+  partition/evaluatePartition.hpp
+  partition/meassureCommunication.hpp
+  partition/meassureOperationsMinLoop.hpp
+  partition/flexibleSolverTimer.hpp
+  generalDim/jsonSolveGeneral.hpp
+  generalDim/coarsePartInfo.hpp)
+
+add_executable("multJsonSolve"
   multJsonSolve.cpp
   io/inputRead.hpp
   io/dictRead.hpp
@@ -351,6 +387,8 @@ set(opm_dep
   listTransInfoCo2
   zoltanInfo
   zoltanInfoCo2
+  coarsePartInfo
+  coarsePartInfoCo2
   transmissibilityHirPart
   transmissibilityHirPartCo2
   wellJsonSolve
