@@ -18,7 +18,7 @@
 */
 
 template <typename MatrixType>
-void createTransDiagonal(const MatrixType& mat1, 
+void createTransDiagonal(const MatrixType& mat1,
 			 MatrixType& mat2) 
 {
     const std::size_t rows = mat1.N();
@@ -53,7 +53,7 @@ void createTransDiagonal(const MatrixType& mat1,
             double val = (*j)[0][0];
             
             // Set mat2 off-diagonal to -mat1
-            // Note: If colIdx == rowIdx (unlikely per your description), 
+            // Note: If colIdx == rowIdx  
             // this will be overwritten by the rowSum later anyway.
             mat2[rowIdx][colIdx][0][0] = -val;
             

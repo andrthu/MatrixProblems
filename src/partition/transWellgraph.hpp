@@ -221,11 +221,11 @@ public:
 
 	//std::vector<std::map<int, double> > cedges;
 
-	for (std::vector<std::tuple<int,int,double> > es : gEdges ) {
+	for (const std::vector<std::tuple<int,int,double> >& es : gEdges ) {
 
 	    std::map<int, double> ce;
 
-	    for (std::tuple<int,int,double> fe : es) {
+	    for (const std::tuple<int,int,double>& fe : es) {
 
 		int coarseNab = f2c[std::get<1>(fe)];
 		double weight = wgtType_ == 0 ? 1.0 : std::get<2>(fe);
@@ -364,8 +364,8 @@ public:
 	    std::cout << "Coarse graph size(csize,biggest,numSingle,fsize,numBig): " << c2f.size()<< " "<< biggest<< " "<< single<< " " << N << " "<<  msns << std::endl;
     }
 
-    template<class Comm>
-    void createAmgGraph(const Comm& comm, int level)
+  template<class Comm, class D>
+  void createAmgGraph(const Comm& comm, int level, D dr)
     {
 	int rank = comm.communicator().rank();
 	typedef Dune::MatrixAdapter<Mat, Vec, Vec> GLO;
@@ -387,6 +387,10 @@ public:
 	    Opm::FlowLinearSolverParameters flsp_amg;
 	    Opm::PropertyTree prm_amg = setupAMG(std::string("amg"), flsp_amg);
 	    prm_amg.put("skip_isolated",false);
+	    prm_amg.put("maxaggsize", std::stoi(dr.dict[20]));
+	    prm_amg.put("minaggsize", std::stoi(dr.dict[21]));
+	    prm_amg.put("maxconnectivity", std::stoi(dr.dict[22]));
+	    prm_amg.put("maxdistance", std::stoi(dr.dict[23]));
 	    Criterion criterion(15, prm_amg.get<int>("coarsenTarget", 1200));
 	    setCritForPart(criterion, prm_amg);
 	    SmootherArgs smootherArgs;
@@ -501,7 +505,6 @@ public:
     double base_;
     int wgtType_;
 
-    
     std::vector<std::vector<int>> courseNodes_;
     std::vector<std::map<int, double> > cedges;
     std::vector<int> f2c;

@@ -74,5 +74,9 @@ public:
     dict[17] = std::string("0");    //Part type: 0=zoltan,1=parmetis,2=hyper,3=metisCG,AMGpart=4
     dict[18] = std::string("1");    //Level to use for ZoltanAMG
     dict[19] = std::string("0");    //Meassure operations in multJsonSolve 0=false,1=true
+    dict[20] = std::string("6");    //AMGpart maxAgg
+    dict[21] = std::string("4");    //AMGpart minAgg
+    dict[22] = std::string("15");   //AMGpart maxConnectivety
+    dict[23] = std::string("2");    //AMGpart maxDistance
   }
 };

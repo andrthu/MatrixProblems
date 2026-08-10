@@ -628,7 +628,7 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
 	    typedef Dune::OwnerOverlapCopyCommunication<int,int> DummyComm;
 	    std::shared_ptr<DummyComm> dummyComm(new DummyComm(comm));
 	    dummyComm->remoteIndices().template rebuild<false>();
-	    twg.createAmgGraph(*dummyComm, amgLevel);
+	    twg.createAmgGraph(*dummyComm, amgLevel, dr);
 	    if (rank == 0) {
 		std::cout << "Created the AMG graph" << std::endl;
 	    }
@@ -751,7 +751,7 @@ void zoltanPartitionFunction(std::vector<int>& mpirank, M& g , M& wells, Comm co
 	    typedef Dune::OwnerOverlapCopyCommunication<int,int> DummyComm;
 	    std::shared_ptr<DummyComm> dummyComm(new DummyComm(comm));
 	    dummyComm->remoteIndices().template rebuild<false>();
-	    twg.createAmgGraph(*dummyComm, amgLevel);
+	    twg.createAmgGraph(*dummyComm, amgLevel, dr);
 	    if (rank == 0) {
 		std::cout << "Created the AMG graph" << std::endl;
 	    }
