@@ -53,29 +53,29 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
     std::vector<int> mpiVec;
 
     for (int i = 0; i < systemDirs.size(); ++i) {
-	if ( boost::algorithm::ends_with( systemDirs[i], ".ini") ) {
-	    
-	    DR.read_file_and_update(systemDirs[i].data());
-	    if (rank == 0) {
-		DR.write_param();
-	    }
-	}
+        if ( boost::algorithm::ends_with( systemDirs[i], ".ini") ) {
+            
+            DR.read_file_and_update(systemDirs[i].data());
+            if (rank == 0) {
+                DR.write_param();
+            }
+        }
     }
     
     for (int i = 0; i < systemDirs.size(); ++i) {
 
-	if ( boost::algorithm::ends_with( systemDirs[i], ".json") ) {
-	    DR.dict[12] = systemDirs[i];
-	} else if ( boost::algorithm::ends_with( systemDirs[i], ".ini") ) {}
-	else {
-	    Mat A_loc;
-	    Vec rhs_loc;
-	    mpiVec = readMatOnRootAndDist(systemDirs[i], A_loc, rhs_loc, DR, comm, parComm, cc, mpiVec, true, i!=0);
+        if ( boost::algorithm::ends_with( systemDirs[i], ".json") ) {
+            DR.dict[12] = systemDirs[i];
+        } else if ( boost::algorithm::ends_with( systemDirs[i], ".ini") ) {}
+        else {
+            Mat A_loc;
+            Vec rhs_loc;
+            mpiVec = readMatOnRootAndDist(systemDirs[i], A_loc, rhs_loc, DR, comm, parComm, cc, mpiVec, true, i!=0);
 
-	    systems.push_back(A_loc);
-	    rhs.push_back(rhs_loc);
-	    sps.push_back(ScalarProduct(*parComm));
-	}
+            systems.push_back(A_loc);
+            rhs.push_back(rhs_loc);
+            sps.push_back(ScalarProduct(*parComm));
+        }
     }
 
     if (rank == 0) {std::cout << std::endl;}
@@ -86,46 +86,65 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
     Opm::PropertyTree prm_json(flsp_json.linsolver_);
     std::string pc_Type = prm_json.get<std::string>("preconditioner.type");
     if (pc_Type == "cpr") {
-	prm_json.put("preconditioner.coarsesolver.preconditioner.verbosity", 10);
+        prm_json.put("preconditioner.coarsesolver.preconditioner.verbosity", 10);
     }
     prm_json.put("preconditioner.verbosity", 10);
     prm_json.put("verbosity", 2);
     
     int pidx = 1;
     if (block_size == 2)
+
 	if ( !isSPE10(systemDirs) )
 	    pidx = 0;
     
     for (int i = 0; i < systems.size(); ++i) {
 
-	std::function<Vec()> quasi;
-	auto Ai = systems[i];
-	quasi = [Ai, pidx]() {
-	    return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(Ai, pidx, false);
-	};
+        std::function<Vec()> quasi;
+        auto Ai = systems[i];
+        quasi = [Ai, pidx]() {
+            return Opm::Amg::getQuasiImpesWeights<Mat, Vec>(Ai, pidx, false);
+        };
 
-	GLO glo(Ai, *parComm);
+        GLO glo(Ai, *parComm);
 
-	auto fs_json = std::make_unique<FlexibleSolverType>(glo, *parComm, prm_json, quasi, pidx);
+        auto fs_json = std::make_unique<FlexibleSolverType>(glo, *parComm, prm_json, quasi, pidx);
 
-	if (std::stoi(DR.dict[19]) == 0) {
-	    if (rank == 0) {std::cout << std::endl;}
-	    cc.barrier();
-	    multipleMinLoopTimeComm(cc, comm, rhs[i]);
-	    if (rank == 0) {std::cout << std::endl;}
-	    cc.barrier();
-	    multipleMinLoopTimeSpMVAS(cc, glo, rhs[i], 3);
-	    if (rank == 0) {std::cout << std::endl;}
-	    cc.barrier();
-	    multipleMinLoopTimeFS(cc, *fs_json, rhs[i], pc_Type, 3);
-	    if (rank == 0) {std::cout << std::endl;}
-	}
-	
-	Vec crhs(rhs[i]);
-	Vec x(crhs.size());
-	x=0;
+        if (std::stoi(DR.dict[19]) == 0) {
+            if (rank == 0) {std::cout << std::endl;}
+            cc.barrier();
+            multipleMinLoopTimeComm(cc, comm, rhs[i], 5);
+            if (rank == 0) {std::cout << std::endl;}
+            cc.barrier();
+            multipleMinLoopTimeCommNoBarrier(cc, comm, rhs[i], 5);
+            if (rank == 0) {std::cout << std::endl;}
+            cc.barrier();
+            multipleMinLoopTimeCommGood(cc, comm, rhs[i], 5);
+            if (rank == 0) {std::cout << std::endl;}
+            cc.barrier();
+            multipleMinLoopTimeSpMVAS(cc, glo, rhs[i], 3);
+            if (rank == 0) {std::cout << std::endl;}
+            cc.barrier();
+            multipleMinLoopTimeSpMVASNoBarrier(cc, glo, rhs[i], 3);
+            if (rank == 0) {std::cout << std::endl;}
+            cc.barrier();
+            multipleMinLoopTimeSpMVASGood(cc, glo, rhs[i], 3);
+            if (rank == 0) {std::cout << std::endl;}
+            cc.barrier();
+            multipleMinLoopTimeFS(cc, *fs_json, rhs[i], pc_Type, 3);
+            if (rank == 0) {std::cout << std::endl;}
+            cc.barrier();
+            multipleMinLoopTimeFSNoBarrier(cc, *fs_json, rhs[i], pc_Type, 3);
+            if (rank == 0) {std::cout << std::endl;}
+            cc.barrier();
+            multipleMinLoopTimeFSGood(cc, *fs_json, rhs[i], pc_Type, 3);
+            if (rank == 0) {std::cout << std::endl;}
+        }
+        
+        Vec crhs(rhs[i]);
+        Vec x(crhs.size());
+        x=0;
 
-	Dune::InverseOperatorResult stat;
-	fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
+        Dune::InverseOperatorResult stat;
+        fs_json->apply(x, crhs, prm_json.get<double>("tol", 0.001), stat);
     }
 }
