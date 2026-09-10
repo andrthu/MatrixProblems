@@ -372,6 +372,40 @@ add_executable("eclipseIO"
   eclipseIO.cpp
   )
 
+add_executable("writePorosity"
+  writePorosity.cpp
+  )
+# Force the opm-common headers matching the actually-linked opm-common
+# install ahead of /usr/local/include on the search path: /usr/local/include
+# holds a stale, ABI-incompatible copy of opm/io/eclipse/EGrid.hpp that
+# silently compiles but produces undefined references at link time
+# (mismatched default-argument type on the EGrid constructor). Passed as a
+# raw compile option (not target_include_directories) because CMake's
+# implicit-include-directory de-duplication -- based on a stale cached
+# compiler probe from whatever module environment was loaded at the time
+# this build dir was first configured -- otherwise silently drops this
+# path, believing the compiler already searches it by default.
+get_filename_component(OPM_COMMON_PREFIX "${opm-common_DIR}/../../.." ABSOLUTE)
+target_compile_options("writePorosity" PRIVATE "-I${OPM_COMMON_PREFIX}/include")
+
+add_executable("removeDiagonal"
+  removeDiagonal.cpp
+  )
+
+add_executable("transMatrixCompare"
+  transMatrixCompare.cpp
+  )
+target_compile_definitions("transMatrixCompare" PRIVATE
+  TRANSMATRIXCOMPARE_SCRIPT_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+
+add_executable("transMatrixCompareCo2"
+  transMatrixCompareCo2.cpp
+  )
+target_compile_definitions("transMatrixCompareCo2" PRIVATE
+  TRANSMATRIXCOMPARE_SCRIPT_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+
 set(opm_dep
   #twoLevelMethodTest
   jsonSolve
@@ -383,6 +417,8 @@ set(opm_dep
   singleHierarchyMultJsonSolve
   singleHierarchyMultJsonSolveCO2
   eclipseIO
+  writePorosity
+  removeDiagonal
   listTransInfo
   listTransInfoCo2
   zoltanInfo
