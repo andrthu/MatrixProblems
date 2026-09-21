@@ -1054,6 +1054,184 @@ void multipleMinLoopTimeFSGood(Comm cc, O fs, Vec& x, std::string pcname, int I=
     }
 }
 
+// A way of measuring Opm::ParallelOverlappingILU0::apply() directly, in the
+// same "first" style as timeMinLoopFS: a cc.barrier() is issued before every
+// single timed call, which re-synchronizes all ranks each time.
+template <class ILU, class Vec, class Comm>
+double timeMinLoopILU(ILU& ilu, Vec& x, Comm cc, int loopSize)
+{
+    Dune::Timer timer;
+    Vec y(x.size());
+    y = 0;
+    double times[loopSize];
+    for (int i = 0; i < loopSize; ++i) {
+        cc.barrier();
+        timer.reset();
+        timer.start();
+        ilu.apply(y, x);
+        times[i] = timer.stop();
+    }
+
+    double tm = times[0];
+    for (int i = 1; i < loopSize; ++i) {
+        if (times[i]<tm) {
+            tm = times[i];
+        }
+    }
+
+    return tm;
+}
+
+template<class Comm, class ILU, class Vec>
+void multipleMinLoopTimeILU(Comm cc, ILU& ilu, Vec& x, int I=10)
+{
+    int rank = cc.rank();
+
+    for (int j = 0; j < I; ++j)
+    {
+        cc.barrier();
+        double t1 = timeMinLoopILU(ilu, x, cc, 50);
+        double times1[cc.size()];
+
+        cc.gather(&t1, times1, 1, 0);
+        if (rank==0)
+        {
+            std::cout << "JustILU0+1 " << cc.size() << ": ";
+            for (int i = 0; i < cc.size(); i++)
+                std::cout << times1[i] << " ";
+            std::cout << std::endl;
+        }
+    }
+}
+
+// Same as timeMinLoopILU, but without the cc.barrier() call that
+// re-synchronizes all ranks before every single call to ilu.apply(). See
+// the comment above timeMinLoopCommNoBarrier for the rationale: the barrier
+// inside the loop hides waiting/imbalance cost under the "operation" label
+// instead of attributing it correctly. Removing it gives a timing closer to
+// what the operation costs "in the wild", at the price of being noisier.
+template <class ILU, class Vec, class Comm>
+double timeMinLoopILUNoBarrier(ILU& ilu, Vec& x, Comm cc, int loopSize)
+{
+    Dune::Timer timer;
+    Vec y(x.size());
+    y = 0;
+    double times[loopSize];
+    for (int i = 0; i < loopSize; ++i) {
+        timer.reset();
+        timer.start();
+        ilu.apply(y, x);
+        times[i] = timer.stop();
+    }
+
+    double tm = times[0];
+    for (int i = 1; i < loopSize; ++i) {
+        if (times[i]<tm) {
+            tm = times[i];
+        }
+    }
+
+    return tm;
+}
+
+template<class Comm, class ILU, class Vec>
+void multipleMinLoopTimeILUNoBarrier(Comm cc, ILU& ilu, Vec& x, int I=10)
+{
+    int rank = cc.rank();
+
+    for (int j = 0; j < I; ++j)
+    {
+        double t1 = timeMinLoopILUNoBarrier(ilu, x, cc, 50);
+        double times1[cc.size()];
+
+        // cc.gather is itself collective, so it still bounds when rank 0
+        // can print, but unlike cc.barrier() it does not force all ranks
+        // to rendezvous before *every* timed call above.
+        cc.gather(&t1, times1, 1, 0);
+        if (rank==0)
+        {
+            std::cout << "JustILU0NoBarrier+1 " << cc.size() << ": ";
+            for (int i = 0; i < cc.size(); i++)
+                std::cout << times1[i] << " ";
+            std::cout << std::endl;
+        }
+    }
+}
+
+// A way of measuring Opm::ParallelOverlappingILU0::apply() directly, aimed
+// at giving a more trustworthy number than either of the two variants above.
+// See the comment above timeMinLoopCommGood for the full rationale:
+//  - An untimed warm-up call is made before the loop starts.
+//  - Ranks are synchronized with a single cc.barrier() once, right before
+//    the timed loop, and there is no barrier inside the loop.
+//  - Both the minimum and the mean of the loopSize samples are recorded
+//    per rank, and both are reduced across ranks with cc.max() since the
+//    cost felt by the application is bounded by the slowest rank.
+template<class ILU, class Vec, class Comm>
+double timeMinLoopILUGood(ILU& ilu, Vec& x, Comm& cc, int loopSize, double& meanOut)
+{
+    Dune::Timer timer;
+    Vec y(x.size());
+    y = 0;
+
+    // Untimed warm-up call.
+    ilu.apply(y, x);
+
+    // Align all ranks once, right before timing starts.
+    cc.barrier();
+
+    double times[loopSize];
+    for (int i = 0; i < loopSize; ++i) {
+        timer.reset();
+        timer.start();
+        ilu.apply(y, x);
+        times[i] = timer.stop();
+    }
+
+    double tm = times[0];
+    double sum = 0.0;
+    for (int i = 0; i < loopSize; ++i) {
+        sum += times[i];
+        if (times[i]<tm) {
+            tm = times[i];
+        }
+    }
+    meanOut = sum / loopSize;
+
+    return tm;
+}
+
+template<class Comm, class ILU, class Vec>
+void multipleMinLoopTimeILUGood(Comm cc, ILU& ilu, Vec& x, int I=10)
+{
+    int rank = cc.rank();
+
+    for (int j = 0; j < I; ++j)
+    {
+        cc.barrier();
+        double mean1 = 0.0;
+        double min1 = timeMinLoopILUGood(ilu, x, cc, 50, mean1);
+
+        double minTimes1[cc.size()];
+        double meanTimes1[cc.size()];
+        cc.gather(&min1, minTimes1, 1, 0);
+        cc.gather(&mean1, meanTimes1, 1, 0);
+
+        if (rank==0)
+        {
+            std::cout << "JustILU0GoodMin+1 " << cc.size() << ": ";
+            for (int i = 0; i < cc.size(); i++)
+                std::cout << minTimes1[i] << " ";
+            std::cout << std::endl;
+
+            std::cout << "JustILU0GoodMean+1 " << cc.size() << ": ";
+            for (int i = 0; i < cc.size(); i++)
+                std::cout << meanTimes1[i] << " ";
+            std::cout << std::endl;
+        }
+    }
+}
+
 template<class Vec, class Comm>
 double timeMinLoopAxpy(Vec& x, Comm& cc, int loopSize)
 {

@@ -138,6 +138,19 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
             cc.barrier();
             multipleMinLoopTimeFSGood(cc, *fs_json, rhs[i], pc_Type, 3);
             if (rank == 0) {std::cout << std::endl;}
+
+            if (pc_Type == "ParOverILU0") {
+                ILU ilu(Ai, *parComm, 0.9, Opm::MILU_VARIANT::ILU, false, false);
+                cc.barrier();
+                multipleMinLoopTimeILU(cc, ilu, rhs[i], 3);
+                if (rank == 0) {std::cout << std::endl;}
+                cc.barrier();
+                multipleMinLoopTimeILUNoBarrier(cc, ilu, rhs[i], 3);
+                if (rank == 0) {std::cout << std::endl;}
+                cc.barrier();
+                multipleMinLoopTimeILUGood(cc, ilu, rhs[i], 3);
+                if (rank == 0) {std::cout << std::endl;}
+            }
         }
         
         Vec crhs(rhs[i]);
