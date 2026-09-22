@@ -20,11 +20,16 @@
 #ifndef OPM_COPYILU0_HEADER_INCLUDED
 #define OPM_COPYILU0_HEADER_INCLUDED
 
-#endif // OPM_COPYILU0_HEADER_INCLUDED
-
 #include <dune/common/version.hh>
+#include <dune/common/unused.hh>
 #include <dune/istl/preconditioner.hh>
 #include <dune/istl/ilu.hh>
+#include <dune/istl/owneroverlapcopy.hh>
+#include <dune/istl/paamg/pinfo.hh>
+#include <dune/istl/paamg/smoother.hh>
+
+#include <opm/common/ErrorMacros.hpp>
+#include <opm/simulators/linalg/PreconditionerWithUpdate.hpp>
 
 template<class Matrix, class Domain, class Range, class ParallelInfo = Dune::Amg::SequentialInformation>
 class ParallelOverlappingILU0;
@@ -52,6 +57,67 @@ class ParallelOverlappingILU0Args
  private:
     int n_;
 };
+
+// Copied from opm-simulators ParallelOverlappingILU0_impl.hpp, since the
+// Opm::detail version is not available from the installed headers.
+template<class M>
+void ghost_last_bilu0_decomposition (M& A, std::size_t interiorSize)
+{
+    // iterator types
+    assert(interiorSize <= A.N());
+    using rowiterator = typename M::RowIterator;
+    using coliterator = typename M::ColIterator;
+    using block = typename M::block_type;
+
+    // implement left looking variant with stored inverse
+    for (rowiterator i = A.begin(); i.index() < interiorSize; ++i)
+    {
+        // coliterator is diagonal after the following loop
+        coliterator endij=(*i).end();           // end of row i
+        coliterator ij;
+
+        // eliminate entries left of diagonal; store L factor
+        for (ij=(*i).begin(); ij.index()<i.index(); ++ij)
+        {
+            // find A_jj which eliminates A_ij
+            coliterator jj = A[ij.index()].find(ij.index());
+
+            // compute L_ij = A_jj^-1 * A_ij
+            (*ij).rightmultiply(*jj);
+
+            // modify row
+            coliterator endjk=A[ij.index()].end();    // end of row j
+            coliterator jk=jj; ++jk;
+            coliterator ik=ij; ++ik;
+            while (ik!=endij && jk!=endjk)
+                if (ik.index()==jk.index())
+                {
+                    block B(*jk);
+                    B.leftmultiply(*ij);
+                    *ik -= B;
+                    ++ik; ++jk;
+                }
+                else
+                {
+                    if (ik.index()<jk.index())
+                        ++ik;
+                    else
+                        ++jk;
+                }
+        }
+
+        // invert pivot and store it in A
+        if (ij.index()!=i.index())
+            DUNE_THROW(Dune::ISTLError,"diagonal entry missing");
+        try {
+            (*ij).invert();   // compute inverse of diagonal block
+        }
+        catch (Dune::FMatrixError & e) {
+            DUNE_THROW(Dune::ISTLError,"ILU failed to invert matrix block");
+        }
+    }
+}
+
 
 template<class M, class CRS, class InvVector>
 void convertToCRS(const M& A, CRS& lower, CRS& upper, InvVector& inv , size_t interiorSize)
@@ -587,6 +653,59 @@ public:
         }
     }
 
+    virtual void applyNoCota (Domain& v, const Range& d) const
+    {
+	//Range& md = d;
+	//Domain& mv = v;
+        // iterator types
+        typedef typename Range ::block_type  dblock;
+        typedef typename Domain::block_type  vblock;
+
+        const size_type iEnd = lower_.rows();
+        const size_type lastRow = iEnd - 1;
+        size_type upperLoppStart = iEnd - interiorSize_;
+        size_type lowerLoopEnd = interiorSize_;
+        if( iEnd != upper_.rows() )
+        {
+            OPM_THROW(std::logic_error,"ILU: number of lower and upper rows must be the same");
+        }
+
+        // lower triangular solve
+        for( size_type i=0; i<lowerLoopEnd; ++ i )
+        {
+          dblock rhs( d[ i ] );
+          const size_type rowI     = lower_.rows_[ i ];
+          const size_type rowINext = lower_.rows_[ i+1 ];
+
+          for( size_type col = rowI; col < rowINext; ++ col )
+          {
+            lower_.values_[ col ].mmv( v[ lower_.cols_[ col ] ], rhs );
+          }
+
+          v[ i ] = rhs;  // Lii = I
+        }
+
+        for( size_type i=upperLoppStart; i<iEnd; ++ i )
+        {
+            vblock& vBlock = v[ lastRow - i ];
+            vblock rhs ( vBlock );
+            const size_type rowI     = upper_.rows_[ i ];
+            const size_type rowINext = upper_.rows_[ i+1 ];
+
+            for( size_type col = rowI; col < rowINext; ++ col )
+            {
+                upper_.values_[ col ].mmv( v[ upper_.cols_[ col ] ], rhs );
+            }
+
+            // apply inverse and store result
+            inv_[ i ].mv( rhs, vBlock);
+        }
+
+        if( relaxation_ ) {
+            v *= w_;
+        }
+    }
+
     template <class V>
     void copyOwnerToAll( V& v ) const
     {
@@ -603,6 +722,11 @@ public:
     virtual void post (Range& x) override
     {
         DUNE_UNUSED_PARAMETER(x);
+    }
+
+    virtual bool hasPerfectUpdate() const
+    {
+        return true;
     }
 
     virtual void update() override
@@ -624,10 +748,10 @@ public:
 	    // create ILU-0 decomposition
                 
 	    ILU.reset( new Matrix( *A_ ) );
-	    Opm::detail::ghost_last_bilu0_decomposition(*ILU, interiorSize_);
+	    ghost_last_bilu0_decomposition(*ILU, interiorSize_);
 	}
         // store ILU in simple CRS format
-	Opm::detail::convertToCRS( *ILU, lower_, upper_, inv_ );
+	convertToCRS( *ILU, lower_, upper_, inv_, interiorSize_ );
     }
 protected:
     //! \brief The ILU0 decomposition of the matrix.
@@ -861,6 +985,11 @@ public:
         DUNE_UNUSED_PARAMETER(x);
     }
 
+    virtual bool hasPerfectUpdate() const
+    {
+        return true;
+    }
+
     virtual void update() override
     {
         
@@ -880,7 +1009,7 @@ public:
 	    // create ILU-0 decomposition
                 
 	    ILU.reset( new Matrix( *A_ ) );
-	    Opm::detail::ghost_last_bilu0_decomposition(*ILU, interiorSize_);
+	    ghost_last_bilu0_decomposition(*ILU, interiorSize_);
 	}
         // store ILU in simple CRS format
 	convertToCRS( *ILU, lower_, upper_, inv_ , interiorSize_ );
@@ -900,7 +1029,7 @@ public:
 	    // create ILU-0 decomposition
                 
 	    ILU.reset( new Matrix( *A_ ) );
-	    Opm::detail::ghost_last_bilu0_decomposition(*ILU, interiorSize_);
+	    ghost_last_bilu0_decomposition(*ILU, interiorSize_);
 	}
         // store ILU in simple CRS format
 	updateConvertToCRS( *ILU, lower_, upper_, inv_, interiorSize_ );
@@ -956,3 +1085,5 @@ protected:
     const Matrix* A_;
     int iluIteration_;
 };
+
+#endif // OPM_COPYILU0_HEADER_INCLUDED

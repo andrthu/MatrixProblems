@@ -1054,11 +1054,12 @@ void multipleMinLoopTimeFSGood(Comm cc, O fs, Vec& x, std::string pcname, int I=
     }
 }
 
-// A way of measuring Opm::ParallelOverlappingILU0::apply() directly, in the
-// same "first" style as timeMinLoopFS: a cc.barrier() is issued before every
-// single timed call, which re-synchronizes all ranks each time.
+// A way of measuring the ILU apply() (or applyNoCota() if noCota is true)
+// directly, in the same "first" style as timeMinLoopFS: a cc.barrier() is
+// issued before every single timed call, which re-synchronizes all ranks
+// each time.
 template <class ILU, class Vec, class Comm>
-double timeMinLoopILU(ILU& ilu, Vec& x, Comm cc, int loopSize)
+double timeMinLoopILU(ILU& ilu, Vec& x, Comm cc, int loopSize, bool noCota)
 {
     Dune::Timer timer;
     Vec y(x.size());
@@ -1068,7 +1069,10 @@ double timeMinLoopILU(ILU& ilu, Vec& x, Comm cc, int loopSize)
         cc.barrier();
         timer.reset();
         timer.start();
-        ilu.apply(y, x);
+        if (noCota)
+            ilu.applyNoCota(y, x);
+        else
+            ilu.apply(y, x);
         times[i] = timer.stop();
     }
 
@@ -1090,15 +1094,24 @@ void multipleMinLoopTimeILU(Comm cc, ILU& ilu, Vec& x, int I=10)
     for (int j = 0; j < I; ++j)
     {
         cc.barrier();
-        double t1 = timeMinLoopILU(ilu, x, cc, 50);
+        double t1 = timeMinLoopILU(ilu, x, cc, 50, false);
+        cc.barrier();
+        double t2 = timeMinLoopILU(ilu, x, cc, 50, true);
         double times1[cc.size()];
+        double times2[cc.size()];
 
         cc.gather(&t1, times1, 1, 0);
+        cc.gather(&t2, times2, 1, 0);
         if (rank==0)
         {
-            std::cout << "JustILU0+1 " << cc.size() << ": ";
+            std::cout << "justILU0+1 " << cc.size() << ": ";
             for (int i = 0; i < cc.size(); i++)
                 std::cout << times1[i] << " ";
+            std::cout << std::endl;
+
+            std::cout << "justILU0noCota+1 " << cc.size() << ": ";
+            for (int i = 0; i < cc.size(); i++)
+                std::cout << times2[i] << " ";
             std::cout << std::endl;
         }
     }
@@ -1120,7 +1133,7 @@ double timeMinLoopILUNoBarrier(ILU& ilu, Vec& x, Comm cc, int loopSize)
     for (int i = 0; i < loopSize; ++i) {
         timer.reset();
         timer.start();
-        ilu.apply(y, x);
+        ilu.applyNoCota(y, x);
         times[i] = timer.stop();
     }
 
@@ -1175,7 +1188,7 @@ double timeMinLoopILUGood(ILU& ilu, Vec& x, Comm& cc, int loopSize, double& mean
     y = 0;
 
     // Untimed warm-up call.
-    ilu.apply(y, x);
+    ilu.applyNoCota(y, x);
 
     // Align all ranks once, right before timing starts.
     cc.barrier();
@@ -1184,7 +1197,7 @@ double timeMinLoopILUGood(ILU& ilu, Vec& x, Comm& cc, int loopSize, double& mean
     for (int i = 0; i < loopSize; ++i) {
         timer.reset();
         timer.start();
-        ilu.apply(y, x);
+        ilu.applyNoCota(y, x);
         times[i] = timer.stop();
     }
 

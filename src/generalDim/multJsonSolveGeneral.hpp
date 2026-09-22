@@ -22,6 +22,8 @@
 
 #endif // OPM_MULTJSONSOLVEGENERAL_HEADER_INCLUDED
 
+#include "../solveParallel/copyILU0.hpp"
+
 template<class Mat, class Vec>
 void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
 {
@@ -34,7 +36,7 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
     typedef Dune::OverlappingSchwarzScalarProduct<Vec,Comm> ScalarProduct;
     typedef GhostLastMatrixAdapter<Mat,Vec,Vec,Comm> GLO;                 // solveParallel/ghostLastOperations.hpp
     typedef Dune::OverlappingSchwarzOperator<Mat,Vec,Vec,Comm> Operator;
-    typedef Opm::ParallelOverlappingILU0<Mat,Vec,Vec,Comm> ILU;
+    typedef ParallelOverlappingILU0<Mat,Vec,Vec,Comm> ILU;                // solveParallel/copyILU0.hpp
     typedef Dune::FlexibleSolver<GLO> FlexibleSolverType;
 
     const auto block_size = Vec::block_type::dimension;
@@ -140,15 +142,11 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
             if (rank == 0) {std::cout << std::endl;}
 
             if (pc_Type == "ParOverILU0") {
-                ILU ilu(Ai, *parComm, 0.9, Opm::MILU_VARIANT::ILU, false, false);
+                InteriorSizeSetter<Comm> iss;
+                size_t interiorSize = iss.set_interiorSize(Ai.N(), Ai.N(), *parComm);
+                ILU ilu(Ai, *parComm, 0.9, interiorSize);
                 cc.barrier();
                 multipleMinLoopTimeILU(cc, ilu, rhs[i], 3);
-                if (rank == 0) {std::cout << std::endl;}
-                cc.barrier();
-                multipleMinLoopTimeILUNoBarrier(cc, ilu, rhs[i], 3);
-                if (rank == 0) {std::cout << std::endl;}
-                cc.barrier();
-                multipleMinLoopTimeILUGood(cc, ilu, rhs[i], 3);
                 if (rank == 0) {std::cout << std::endl;}
             }
         }
