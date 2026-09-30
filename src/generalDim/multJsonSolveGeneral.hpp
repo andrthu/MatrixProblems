@@ -148,6 +148,21 @@ void gen_dim_jsonSolve_mult_sys(std::vector<std::string> systemDirs)
                 cc.barrier();
                 multipleMinLoopTimeILU(cc, ilu, rhs[i], 3);
                 if (rank == 0) {std::cout << std::endl;}
+                cc.barrier();
+                multipleMinLoopTimeILUNoCota(cc, ilu, rhs[i], 3);
+                if (rank == 0) {std::cout << std::endl;}
+                cc.barrier();
+                multipleMinLoopTimeILUNoBarrier(cc, ilu, rhs[i], 3);
+                if (rank == 0) {std::cout << std::endl;}
+                cc.barrier();
+                multipleMinLoopTimeILUNoCotaNoBarrier(cc, ilu, rhs[i], 3);
+                if (rank == 0) {std::cout << std::endl;}
+                cc.barrier();
+                multipleMinLoopTimeILUGood(cc, ilu, rhs[i], 3);
+                if (rank == 0) {std::cout << std::endl;}
+                cc.barrier();
+                multipleMinLoopTimeILUNoCotaGood(cc, ilu, rhs[i], 3);
+                if (rank == 0) {std::cout << std::endl;}
             }
         }
         
